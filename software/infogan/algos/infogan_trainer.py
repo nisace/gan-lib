@@ -48,9 +48,10 @@ class InfoGANTrainer(object):
         self.input_tensor = input_tensor = tf.placeholder(tf.float32, [self.batch_size, self.dataset.image_dim])
 
         with pt.defaults_scope(phase=pt.Phase.train):
+            # (n, input_dim)
             z_var = self.model.latent_dist.sample_prior(self.batch_size)
-            fake_x, _ = self.model.generate(z_var)
-            real_d, _, _, _ = self.model.discriminate(input_tensor)
+            fake_x, _ = self.model.generate(z_var)  # (n, d)
+            real_d, _, _, _ = self.model.discriminate(input_tensor)  # (n,)
             fake_d, _, fake_reg_z_dist_info, _ = self.model.discriminate(fake_x)
 
             reg_z = self.model.reg_z(z_var)
@@ -129,6 +130,7 @@ class InfoGANTrainer(object):
 
     def visualize_all_factors(self):
         with tf.Session():
+            # (n, d) with 10 * 10 samples + other samples
             fixed_noncat = np.concatenate([
                 np.tile(
                     self.model.nonreg_latent_dist.sample_prior(10).eval(),
@@ -190,9 +192,11 @@ class InfoGANTrainer(object):
             else:
                 raise NotImplementedError
             img_var = self.dataset.inverse_transform(img_var)
-            rows = 10
+            rows = 10  # Number of rows and columns of images to generate
+            # (n, w, h, 1)
             img_var = tf.reshape(img_var, [self.batch_size] + list(self.dataset.image_shape))
             img_var = img_var[:rows * rows, :, :, :]
+            # (rows, rows, w, h, 1)
             imgs = tf.reshape(img_var, [rows, rows] + list(self.dataset.image_shape))
             stacked_img = []
             for row in xrange(rows):
@@ -202,6 +206,8 @@ class InfoGANTrainer(object):
                 stacked_img.append(tf.concat(1, row_img))
             imgs = tf.concat(0, stacked_img)
             imgs = tf.expand_dims(imgs, 0)
+            # Images where each row is a different sample from dist
+            # and each column a different non reg latent sample.
             tf.image_summary("image_%d_%s" % (dist_idx, dist.__class__.__name__), imgs)
 
 

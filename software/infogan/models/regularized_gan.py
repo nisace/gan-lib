@@ -8,10 +8,14 @@ from infogan.misc.custom_ops import leaky_rectify
 class RegularizedGAN(object):
     def __init__(self, output_dist, latent_spec, batch_size, image_shape, network_type):
         """
-        :type output_dist: Distribution
-        :type latent_spec: list[(Distribution, bool)]
-        :type batch_size: int
-        :type network_type: string
+        Args:
+            output_dist (Distribution):
+            latent_spec (list): List of latent distributions. [(Distribution, bool)]
+             The boolean indicates if the distribution should be used for
+             regularization.
+            batch_size (int):
+            image_shape (tuple): (w, h, 1)
+            network_type (str):
         """
         self.output_dist = output_dist
         self.latent_spec = latent_spec
@@ -107,6 +111,7 @@ class RegularizedGAN(object):
         return self.reg_cont_latent_dist.join_dist_infos(ret)
 
     def reg_z(self, z_var):
+        """ Return the variables with distribution bool == True (concatenated). """
         ret = []
         for (_, reg_i), z_i in zip(self.latent_spec, self.latent_dist.split_var(z_var)):
             if reg_i:
