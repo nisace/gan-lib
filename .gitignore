@@ -6,3 +6,4 @@ logs
 ckt
 .ipynb_checkpoints
 *~
+docker-compose.yml
