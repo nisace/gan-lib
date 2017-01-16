@@ -1,4 +1,0 @@
-worker:
-  build: docker
-  volumes:
-    - "/home/think/work/gan-lib/software:/gan-lib"
