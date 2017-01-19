@@ -6,6 +6,11 @@ import numpy as np
 
 class Dataset(object):
     def __init__(self, images, labels=None):
+        """
+        Args:
+            images (ndarray): shape (n, ...)
+            labels (ndarray): shape (n,)
+        """
         self._images = images.reshape(images.shape[0], -1)
         self._labels = labels
         self._epochs_completed = -1
@@ -82,6 +87,19 @@ class MnistDataset(object):
 
     def transform(self, data):
         return data
+
+    def inverse_transform(self, data):
+        return data
+
+
+class Cifar10Dataset(object):
+    def __init__(self):
+        from keras.datasets import cifar10
+        (X_train, y_train), _ = cifar10.load_data()
+        X_train = np.transpose(X_train, (0, 2, 3, 1))  # (n, h, w, c)
+        self.train = Dataset(X_train, y_train)
+        self.image_dim = 32 * 32 * 3
+        self.image_shape = (32, 32, 3)
 
     def inverse_transform(self, data):
         return data
