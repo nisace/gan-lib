@@ -1,4 +1,5 @@
 MNIST
+CIFAR-10
 *.pyc
 .idea
 imgs

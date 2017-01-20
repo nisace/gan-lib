@@ -1,4 +1,6 @@
 import os
+import shutil
+import tarfile
 
 from six.moves.urllib.error import URLError, HTTPError
 from six.moves.urllib.request import urlopen
@@ -41,6 +43,9 @@ def download(origin, file_path):
         origin (str): The origin of the file to download (i.e URL)
         file_path (str): The path where to download.
     """
+    if os.path.exists(file_path):
+        print('{} already exists. Not downloading again'.format(file_path))
+        return
     print('Downloading data from {}'.format(origin))
     error_msg = 'URL fetch failure on {}: {} -- {}'
     try:
@@ -55,3 +60,20 @@ def download(origin, file_path):
         if os.path.exists(file_path):
             os.remove(file_path)
         raise
+
+
+def untar(file_path, destination_folder, untar_path):
+    if os.path.exists(untar_path):
+        print('{} already exists. Not untaring.'.format(untar_path))
+        return
+    print('Untaring {}...'.format(file_path))
+    with tarfile.open(file_path, 'r') as tfile:
+        try:
+            tfile.extractall(path=destination_folder)
+        except (Exception, KeyboardInterrupt):
+            if os.path.exists(untar_path):
+                if os.path.isfile(untar_path):
+                    os.remove(untar_path)
+                else:
+                    shutil.rmtree(untar_path)
+            raise

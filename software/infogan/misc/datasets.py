@@ -3,6 +3,8 @@ from tensorflow.examples.tutorials import mnist
 import os
 import numpy as np
 
+from utils.file_system_utils import download, untar
+
 
 class Dataset(object):
     def __init__(self, images, labels=None):
@@ -102,7 +104,13 @@ class Cifar10Dataset(object):
         self.image_shape = (32, 32, 3)
 
     def load_data(self):
-
+        origin = 'http://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz'
+        origin_file_name = os.path.basename(origin)
+        download_folder = 'CIFAR-10'
+        download_path = os.path.join(download_folder, origin_file_name)
+        download(origin, download_path)
+        untar_path = os.path.join(download_folder, 'cifar-10-batches-py')
+        untar(download_path, download_folder, untar_path)
 
     def load_batch(self, file_path):
         with open(file_path, 'r') as f:
