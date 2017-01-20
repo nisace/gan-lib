@@ -101,5 +101,14 @@ class Cifar10Dataset(object):
         self.image_dim = 32 * 32 * 3
         self.image_shape = (32, 32, 3)
 
+    def load_data(self):
+
+
+    def load_batch(self, file_path):
+        with open(file_path, 'r') as f:
+            d = pkl.load(f)
+        return d['data'], d['labels']
+
+
     def inverse_transform(self, data):
         return data

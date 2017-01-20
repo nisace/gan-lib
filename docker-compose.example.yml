@@ -2,4 +2,3 @@ worker:
   build: docker
   volumes:
     - "/pwd/software:/gan-lib"
-    - "/pwd/software/CIFAR-10:/root/.keras/datasets/cifar-10-batches-py"
