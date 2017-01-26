@@ -2,5 +2,4 @@ prettytensor
 progressbar
 python-dateutil
 ipdb
-keras
 tqdm

@@ -1,7 +1,8 @@
+import cPickle as pkl
+import os
+
 import numpy as np
 from tensorflow.examples.tutorials import mnist
-import os
-import numpy as np
 
 from utils.file_system_utils import download, untar
 
@@ -96,14 +97,13 @@ class MnistDataset(object):
 
 class Cifar10Dataset(object):
     def __init__(self):
-        from keras.datasets import cifar10
-        (X_train, y_train), _ = cifar10.load_data()
-        X_train = np.transpose(X_train, (0, 2, 3, 1))  # (n, h, w, c)
-        self.train = Dataset(X_train, y_train)
+        x_train, y_train = Cifar10Dataset.load_data()
+        self.train = Dataset(x_train, y_train)
         self.image_dim = 32 * 32 * 3
         self.image_shape = (32, 32, 3)
 
-    def load_data(self):
+    @staticmethod
+    def load_data():
         origin = 'http://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz'
         origin_file_name = os.path.basename(origin)
         download_folder = 'CIFAR-10'
@@ -111,12 +111,23 @@ class Cifar10Dataset(object):
         download(origin, download_path)
         untar_path = os.path.join(download_folder, 'cifar-10-batches-py')
         untar(download_path, download_folder, untar_path)
+        x_train = []
+        y_train = []
+        for i in range(1, 6):
+            batch_path = os.path.join(untar_path, 'data_batch_{}'.format(i))
+            data, labels = Cifar10Dataset.load_batch(batch_path)
+            x_train.append(data)
+            y_train.append(labels)
+        return np.concatenate(x_train), np.concatenate(y_train)
 
-    def load_batch(self, file_path):
-        with open(file_path, 'r') as f:
+    @staticmethod
+    def load_batch(batch_file_path):
+        with open(batch_file_path, 'r') as f:
             d = pkl.load(f)
-        return d['data'], d['labels']
-
+        data = d['data']
+        data = data.reshape(data.shape[0], 3, 32, 32)  # (n, c, h, w)
+        data = np.transpose(data, (0, 2, 3, 1))  # (n, h, w, c)
+        return data, d['labels']
 
     def inverse_transform(self, data):
         return data

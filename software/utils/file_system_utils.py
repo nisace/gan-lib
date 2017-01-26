@@ -32,6 +32,7 @@ def urlretrieve(url, file_path, progbar=None, data=None):
             yield chunk
 
     response = urlopen(url, data)
+    os.makedirs(os.path.dirname(file_path))
     with open(file_path, 'wb') as fd:
         for chunk in chunk_read(response, progbar=progbar):
             fd.write(chunk)

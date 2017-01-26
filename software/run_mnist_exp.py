@@ -1,16 +1,15 @@
-from __future__ import print_function
 from __future__ import absolute_import
-from infogan.misc.distributions import Uniform, Categorical, Gaussian, MeanBernoulli
+from __future__ import print_function
 
-import tensorflow as tf
-import os
-from infogan.misc.datasets import MnistDataset, Cifar10Dataset
-from infogan.models.regularized_gan import RegularizedGAN
-from infogan.algos.infogan_trainer import InfoGANTrainer
-from infogan.misc.utils import mkdir_p
-import dateutil
-import dateutil.tz
 import datetime
+import os
+
+import dateutil.tz
+
+from infogan.algos.infogan_trainer import InfoGANTrainer
+from infogan.misc.datasets import Cifar10Dataset
+from infogan.misc.distributions import Uniform, Categorical, MeanBernoulli
+from infogan.models.regularized_gan import RegularizedGAN
 
 if __name__ == "__main__":
 
@@ -28,8 +27,8 @@ if __name__ == "__main__":
     log_dir = os.path.join(root_log_dir, exp_name)
     checkpoint_dir = os.path.join(root_checkpoint_dir, exp_name)
 
-    mkdir_p(log_dir)
-    mkdir_p(checkpoint_dir)
+    os.makedirs(log_dir)
+    os.makedirs(checkpoint_dir)
 
     # dataset = MnistDataset()
     dataset = Cifar10Dataset()
