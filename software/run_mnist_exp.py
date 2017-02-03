@@ -1,15 +1,15 @@
 from __future__ import absolute_import
 from __future__ import print_function
 
-import datetime
 import os
 
+import datetime
 import dateutil.tz
 
 from infogan.algos.infogan_trainer import InfoGANTrainer
 from infogan.misc.datasets import Cifar10Dataset
 from infogan.misc.distributions import Uniform, Categorical, MeanBernoulli
-from infogan.models.regularized_gan import RegularizedGAN
+from infogan.models.regularized_gan import MNISTRegularizedGAN
 
 if __name__ == "__main__":
 
@@ -40,12 +40,11 @@ if __name__ == "__main__":
         (Uniform(1, fix_std=True), True),
     ]
 
-    model = RegularizedGAN(
+    model = MNISTRegularizedGAN(
         output_dist=MeanBernoulli(dataset.image_dim),
         latent_spec=latent_spec,
         batch_size=batch_size,
         image_shape=dataset.image_shape,
-        network_type="mnist",
     )
 
     algo = InfoGANTrainer(
