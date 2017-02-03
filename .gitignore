@@ -7,3 +7,4 @@ ckt
 .ipynb_checkpoints
 *~
 docker-compose.yml
+docker/Dockerfile
