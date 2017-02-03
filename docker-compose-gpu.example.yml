@@ -1,7 +1,7 @@
 worker:
   build: docker
   volumes:
-    - "/home/think/work/gan-lib/software:/gan-lib"
+    - "/pwd/software:/gan-lib"
     - "/usr/local/cuda:/usr/local/cuda"
     - "/usr/lib/nvidia-367:/usr/local/nvidia"
     - "/usr/lib/x86_64-linux-gnu/libcuda.so:/usr/lib/x86_64-linux-gnu/libcuda.so"
