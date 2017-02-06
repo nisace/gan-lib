@@ -7,9 +7,10 @@ import datetime
 import dateutil.tz
 
 from infogan.algos.infogan_trainer import InfoGANTrainer
-from infogan.misc.datasets import Cifar10Dataset
+from infogan.misc.datasets import Cifar10Dataset, MnistDataset
 from infogan.misc.distributions import Uniform, Categorical, MeanBernoulli
-from infogan.models.regularized_gan import MNISTRegularizedGAN
+from infogan.models.regularized_gan import MNISTRegularizedGAN, \
+    CIFAR10RegularizedGAN
 
 if __name__ == "__main__":
 
@@ -31,16 +32,32 @@ if __name__ == "__main__":
     os.makedirs(checkpoint_dir)
 
     # dataset = MnistDataset()
-    dataset = Cifar10Dataset()
+    # latent_spec = [
+    #     (Uniform(62), False),
+    #     (Categorical(10), True),
+    #     (Uniform(1, fix_std=True), True),
+    #     (Uniform(1, fix_std=True), True),
+    # ]
+    # model = MNISTRegularizedGAN(
+    #     output_dist=MeanBernoulli(dataset.image_dim),
+    #     latent_spec=latent_spec,
+    #     batch_size=batch_size,
+    #     image_shape=dataset.image_shape,
+    # )
 
+    dataset = Cifar10Dataset()
     latent_spec = [
-        (Uniform(62), False),
+        (Uniform(124), False),
+        (Categorical(10), True),
+        (Categorical(10), True),
+        (Categorical(10), True),
         (Categorical(10), True),
         (Uniform(1, fix_std=True), True),
         (Uniform(1, fix_std=True), True),
+        (Uniform(1, fix_std=True), True),
+        (Uniform(1, fix_std=True), True),
     ]
-
-    model = MNISTRegularizedGAN(
+    model = CIFAR10RegularizedGAN(
         output_dist=MeanBernoulli(dataset.image_dim),
         latent_spec=latent_spec,
         batch_size=batch_size,

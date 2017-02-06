@@ -175,7 +175,7 @@ class MNISTRegularizedGAN(RegularizedGAN):
                  flatten())
 
 
-class CIFAR10RegularizedGAN(RegularizedGAN):
+class CIFAR10InfoGANRegularizedGAN(RegularizedGAN):
     def build_network(self):
         with tf.variable_scope("d_net"):
             shared_template = \
@@ -186,8 +186,8 @@ class CIFAR10RegularizedGAN(RegularizedGAN):
                  custom_conv2d(128, k_h=4, k_w=4).
                  conv_batch_norm().
                  apply(leaky_rectify).
-                 custom_fully_connected(1024).
-                 fc_batch_norm().
+                 custom_conv2d(256, k_h=4, k_w=4).
+                 conv_batch_norm().
                  apply(leaky_rectify))
             self.discriminator_template = shared_template.custom_fully_connected(
                 1)
@@ -201,16 +201,80 @@ class CIFAR10RegularizedGAN(RegularizedGAN):
         with tf.variable_scope("g_net"):
             self.generator_template = \
                 (pt.template("input").
-                 custom_fully_connected(1024).
+                 custom_fully_connected(2 * 2 * 448).
                  fc_batch_norm().
                  apply(tf.nn.relu).
-                 custom_fully_connected(self.image_size / 4 * self.image_size / 4 * 128).
-                 fc_batch_norm().
-                 apply(tf.nn.relu).
-                 reshape([-1, self.image_size / 4, self.image_size / 4, 128]).
-                 custom_deconv2d([0, self.image_size / 2, self.image_size / 2, 64],
+                 reshape([-1, self.image_size / 16, self.image_size / 16, 448]).
+                 custom_deconv2d([0, self.image_size / 8, self.image_size / 8, 256],
                                  k_h=4, k_w=4).
                  conv_batch_norm().
                  apply(tf.nn.relu).
-                 custom_deconv2d([0] + list(self.image_shape), k_h=4, k_w=4).
+                 custom_deconv2d([0, self.image_size / 4, self.image_size / 4, 128],
+                                 k_h=4, k_w=4).
+                 apply(tf.nn.relu).
+                 custom_deconv2d([0, self.image_size / 2, self.image_size / 2, 64],
+                                 k_h=4, k_w=4).
+                 apply(tf.nn.relu).
+                 custom_deconv2d([0] + list(self.image_shape) + [3], k_h=4, k_w=4).
+                 apply(tf.nn.tanh).
+                 flatten())
+
+
+class CIFAR10RegularizedGAN(RegularizedGAN):
+    def build_network(self):
+        # TODO: Check leaky RELU leak rate
+        # TODO: Binary vs 10-class discriminator
+        with tf.variable_scope("d_net"):
+            shared_template = \
+                (pt.template("input").
+                 reshape([-1] + list(self.image_shape)).
+                 custom_conv2d(96, k_h=3, k_w=3, d_h=1, d_w=1).
+                 apply(leaky_rectify).
+                 custom_conv2d(96, k_h=3, k_w=3, d_h=1, d_w=1).
+                 apply(leaky_rectify).
+                 custom_conv2d(96, k_h=3, k_w=3, d_h=1, d_w=1).
+                 apply(leaky_rectify).
+                 max_pool(kernel=[2, 2], stride=[2, 2]).
+                 custom_conv2d(192, k_h=3, k_w=3, d_h=1, d_w=1).
+                 apply(leaky_rectify).
+                 custom_conv2d(192, k_h=3, k_w=3, d_h=1, d_w=1).
+                 apply(leaky_rectify).
+                 custom_conv2d(192, k_h=3, k_w=3, d_h=1, d_w=1).
+                 apply(leaky_rectify).
+                 max_pool(kernel=[3, 3], stride=[2, 2]).
+                 custom_conv2d(192, k_h=3, k_w=3, d_h=1, d_w=1).
+                 apply(leaky_rectify).
+                 custom_conv2d(192, k_h=1, k_w=1, d_h=1, d_w=1).
+                 apply(leaky_rectify).
+                 # custom_conv2d(10, k_h=1, k_w=1, d_h=1, d_w=1).
+                 # apply(leaky_rectify).
+                 custom_fully_connected(1024).
+                 fc_batch_norm().
+                 apply(leaky_rectify))
+            self.discriminator_template = shared_template.custom_fully_connected(
+                1)
+            self.encoder_template = \
+                (shared_template.
+                 custom_fully_connected(128).
+                 fc_batch_norm().
+                 apply(leaky_rectify).
+                 custom_fully_connected(self.reg_latent_dist.dist_flat_dim))
+
+        # TODO: use perforated upsampling
+        with tf.variable_scope("g_net"):
+            self.generator_template = \
+                (pt.template("input").
+                 custom_fully_connected(self.image_size / 4 * self.image_size / 4 * 192).
+                 apply(leaky_rectify).
+                 reshape([-1, self.image_size / 4, self.image_size / 4, 192]).
+                 apply(tf.image.resize_nearest_neighbor, [self.image_size / 2, self.image_size / 2]).
+                 custom_conv2d(96, k_h=5, k_w=5, d_h=1, d_w=1).
+                 apply(leaky_rectify).
+                 custom_conv2d(96, k_h=5, k_w=5, d_h=1, d_w=1).
+                 apply(leaky_rectify).
+                 apply(tf.image.resize_nearest_neighbor, [self.image_size, self.image_size]).
+                 custom_conv2d(96, k_h=5, k_w=5, d_h=1, d_w=1).
+                 apply(leaky_rectify).
+                 custom_conv2d(3, k_h=5, k_w=5, d_h=1, d_w=1).  # BUG
+                 apply(leaky_rectify).  # BUG
                  flatten())

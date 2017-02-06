@@ -250,6 +250,7 @@ class InfoGANTrainer(object):
                         fn = saver.save(sess, "%s/%s.ckpt" % (self.checkpoint_dir, snapshot_name))
                         print("Model saved in file: %s" % fn)
 
+                # (n, h, w, c)
                 x, _ = self.dataset.train.next_batch(self.batch_size)
 
                 summary_str = sess.run(summary_op, {self.input_tensor: x})
