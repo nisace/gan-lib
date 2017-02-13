@@ -8,9 +8,10 @@ import dateutil.tz
 
 from infogan.algos.infogan_trainer import InfoGANTrainer
 from infogan.misc.datasets import Cifar10Dataset, MnistDataset
-from infogan.misc.distributions import Uniform, Categorical, MeanBernoulli
+from infogan.misc.distributions import Uniform, Categorical, MeanBernoulli, \
+    Gaussian
 from infogan.models.regularized_gan import MNISTRegularizedGAN, \
-    CIFAR10RegularizedGAN
+    CIFAR10RegularizedGAN, CelebAInfoGANRegularizedGAN, LSUN_DCGAN
 
 if __name__ == "__main__":
 
@@ -21,7 +22,7 @@ if __name__ == "__main__":
     root_checkpoint_dir = "ckt/mnist"
     batch_size = 128
     updates_per_epoch = 100
-    max_epoch = 50
+    max_epoch = 500
 
     exp_name = "mnist_%s" % timestamp
 
@@ -47,22 +48,34 @@ if __name__ == "__main__":
 
     dataset = Cifar10Dataset()
     latent_spec = [
-        (Uniform(124), False),
+        (Uniform(128), False),
         (Categorical(10), True),
         (Categorical(10), True),
         (Categorical(10), True),
         (Categorical(10), True),
-        (Uniform(1, fix_std=True), True),
-        (Uniform(1, fix_std=True), True),
-        (Uniform(1, fix_std=True), True),
-        (Uniform(1, fix_std=True), True),
+        (Categorical(10), True),
+        (Categorical(10), True),
+        (Categorical(10), True),
+        (Categorical(10), True),
+        (Categorical(10), True),
+        (Categorical(10), True),
+        # (Uniform(1, fix_std=True), True),
+        # (Uniform(1, fix_std=True), True),
+        # (Uniform(1, fix_std=True), True),
+        # (Uniform(1, fix_std=True), True),
     ]
-    model = CIFAR10RegularizedGAN(
-        output_dist=MeanBernoulli(dataset.image_dim),
+    model = CelebAInfoGANRegularizedGAN(
+        output_dist=Gaussian(dataset.image_dim, fix_std=True),
         latent_spec=latent_spec,
         batch_size=batch_size,
         image_shape=dataset.image_shape,
     )
+    # model = CIFAR10RegularizedGAN(
+    #     output_dist=MeanBernoulli(dataset.image_dim),
+    #     latent_spec=latent_spec,
+    #     batch_size=batch_size,
+    #     image_shape=dataset.image_shape,
+    # )
 
     algo = InfoGANTrainer(
         model=model,

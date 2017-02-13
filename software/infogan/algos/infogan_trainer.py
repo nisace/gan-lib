@@ -23,6 +23,7 @@ class InfoGANTrainer(object):
                  info_reg_coeff=1.0,
                  discriminator_learning_rate=2e-4,
                  generator_learning_rate=2e-4,
+                 gen_disc_update_ratio=1,
                  ):
         """
         :type model: RegularizedGAN
@@ -43,6 +44,7 @@ class InfoGANTrainer(object):
         self.generator_trainer = None
         self.input_tensor = None
         self.log_vars = []
+        self.gen_disc_update_ratio = gen_disc_update_ratio
 
     def init_opt(self):
         self.input_tensor = input_tensor = tf.placeholder(tf.float32, [self.batch_size, self.dataset.image_dim])
@@ -240,9 +242,10 @@ class InfoGANTrainer(object):
                     pbar.update(i)
                     x, _ = self.dataset.train.next_batch(self.batch_size)
                     feed_dict = {self.input_tensor: x}
-                    log_vals = sess.run([self.discriminator_trainer] + log_vars, feed_dict)[1:]
                     sess.run(self.generator_trainer, feed_dict)
-                    all_log_vals.append(log_vals)
+                    if i % (self.gen_disc_update_ratio + 1) == 0:
+                        log_vals = sess.run([self.discriminator_trainer] + log_vars, feed_dict)[1:]
+                        all_log_vals.append(log_vals)
                     counter += 1
 
                     if counter % self.snapshot_interval == 0:

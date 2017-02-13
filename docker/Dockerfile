@@ -1,4 +1,4 @@
-FROM gcr.io/tensorflow/tensorflow:latest-gpu
+FROM gcr.io/tensorflow/tensorflow
 
 ADD requirements.txt /root
 RUN pip install -r /root/requirements.txt && \

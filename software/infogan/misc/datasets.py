@@ -96,14 +96,14 @@ class MnistDataset(object):
 
 
 class Cifar10Dataset(object):
-    def __init__(self):
-        x_train, y_train = Cifar10Dataset.load_data()
+    def __init__(self, dtype=np.float32):
+        self.dtype = dtype
+        x_train, y_train = self.load_data()
         self.train = Dataset(x_train, y_train)
         self.image_dim = 32 * 32 * 3
         self.image_shape = (32, 32, 3)
 
-    @staticmethod
-    def load_data():
+    def load_data(self):
         origin = 'http://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz'
         origin_file_name = os.path.basename(origin)
         download_folder = 'CIFAR-10'
@@ -115,17 +115,25 @@ class Cifar10Dataset(object):
         y_train = []
         for i in range(1, 6):
             batch_path = os.path.join(untar_path, 'data_batch_{}'.format(i))
-            data, labels = Cifar10Dataset.load_batch(batch_path)
+            data, labels = self.load_batch(batch_path)
             x_train.append(data)
             y_train.append(labels)
-        return np.concatenate(x_train), np.concatenate(y_train)
+        x_train = np.concatenate(x_train)
+        # min = x_train.min(axis=(1, 2), keepdims=True)
+        # max = x_train.max(axis=(1, 2), keepdims=True)
+        # x_train = ((x_train - min) / (max - min) - 0.5) * 2
+        x_train = x_train / 127.5 - 1.
+        y_train = np.concatenate(y_train)
+        return x_train, y_train
 
-    @staticmethod
-    def load_batch(batch_file_path):
+    def load_batch(self, batch_file_path):
         with open(batch_file_path, 'r') as f:
             d = pkl.load(f)
         data = d['data']
+        data = data.astype(self.dtype)
         data = data.reshape(data.shape[0], 3, 32, 32)  # (n, c, h, w)
+        # data -= np.mean(data, axis=(2, 3), keepdims=True)
+        # data /= np.std(data, axis=(2, 3), keepdims=True)
         data = np.transpose(data, (0, 2, 3, 1))  # (n, h, w, c)
         return data, d['labels']
 

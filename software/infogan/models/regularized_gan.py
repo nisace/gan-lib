@@ -175,7 +175,7 @@ class MNISTRegularizedGAN(RegularizedGAN):
                  flatten())
 
 
-class CIFAR10InfoGANRegularizedGAN(RegularizedGAN):
+class CelebAInfoGANRegularizedGAN(RegularizedGAN):
     def build_network(self):
         with tf.variable_scope("d_net"):
             shared_template = \
@@ -215,7 +215,7 @@ class CIFAR10InfoGANRegularizedGAN(RegularizedGAN):
                  custom_deconv2d([0, self.image_size / 2, self.image_size / 2, 64],
                                  k_h=4, k_w=4).
                  apply(tf.nn.relu).
-                 custom_deconv2d([0] + list(self.image_shape) + [3], k_h=4, k_w=4).
+                 custom_deconv2d([0] + list(self.image_shape), k_h=4, k_w=4).
                  apply(tf.nn.tanh).
                  flatten())
 
@@ -277,4 +277,97 @@ class CIFAR10RegularizedGAN(RegularizedGAN):
                  apply(leaky_rectify).
                  custom_conv2d(3, k_h=5, k_w=5, d_h=1, d_w=1).  # BUG
                  apply(leaky_rectify).  # BUG
+                 flatten())
+
+
+class LSUN_DCGAN(RegularizedGAN):
+    def build_network(self):
+        with tf.variable_scope("d_net"):
+            shared_template = \
+                (pt.template("input").
+                 reshape([-1] + list(self.image_shape)).
+                 custom_conv2d(128, k_h=5, k_w=5).
+                 conv_batch_norm().
+                 apply(leaky_rectify).
+                 custom_conv2d(256, k_h=5, k_w=5).
+                 conv_batch_norm().
+                 apply(leaky_rectify).
+                 custom_conv2d(512, k_h=5, k_w=5).
+                 conv_batch_norm().
+                 apply(leaky_rectify))
+            self.discriminator_template = shared_template.custom_fully_connected(
+                1)
+            self.encoder_template = \
+                (shared_template.
+                 custom_fully_connected(128).
+                 fc_batch_norm().
+                 apply(leaky_rectify).
+                 custom_fully_connected(self.reg_latent_dist.dist_flat_dim))
+
+        with tf.variable_scope("g_net"):
+            self.generator_template = \
+                (pt.template("input").
+                 custom_fully_connected(512 * self.image_size / 8 * self.image_size / 8).
+                 fc_batch_norm().
+                 apply(tf.nn.relu).
+                 reshape([-1, 512, self.image_size / 8, self.image_size / 8]).
+                 custom_deconv2d([0, self.image_size / 4, self.image_size / 4, 256],
+                                 k_h=5, k_w=5).
+                 conv_batch_norm().
+                 apply(tf.nn.relu).
+                 custom_deconv2d([0, self.image_size / 2, self.image_size / 2, 128],
+                                 k_h=5, k_w=5).
+                 conv_batch_norm().
+                 apply(tf.nn.relu).
+                 custom_deconv2d([0] + list(self.image_shape),
+                                 k_h=5, k_w=5).
+                 apply(tf.nn.tanh).
+                 flatten())
+
+
+class CelebA_DCGAN_carpedm20(RegularizedGAN):
+    def build_network(self):
+        with tf.variable_scope("d_net"):
+            shared_template = \
+                (pt.template("input").
+                 reshape([-1] + list(self.image_shape)).
+                 custom_conv2d(64, k_h=5, k_w=5).
+                 conv_batch_norm().
+                 apply(leaky_rectify).
+                 custom_conv2d(128, k_h=5, k_w=5).
+                 conv_batch_norm().
+                 apply(leaky_rectify).
+                 custom_conv2d(256, k_h=5, k_w=5).
+                 conv_batch_norm().
+                 apply(leaky_rectify).
+                 custom_conv2d(512, k_h=5, k_w=5).
+                 conv_batch_norm().
+                 apply(leaky_rectify))
+            self.discriminator_template = shared_template.custom_fully_connected(
+                1)
+            self.encoder_template = \
+                (shared_template.
+                 custom_fully_connected(128).
+                 fc_batch_norm().
+                 apply(leaky_rectify).
+                 custom_fully_connected(self.reg_latent_dist.dist_flat_dim))
+
+        with tf.variable_scope("g_net"):
+            self.generator_template = \
+                (pt.template("input").
+                 custom_fully_connected(512 * self.image_size / 8 * self.image_size / 8).
+                 fc_batch_norm().
+                 apply(tf.nn.relu).
+                 reshape([-1, 512, self.image_size / 8, self.image_size / 8]).
+                 custom_deconv2d([0, self.image_size / 4, self.image_size / 4, 256],
+                                 k_h=5, k_w=5).
+                 conv_batch_norm().
+                 apply(tf.nn.relu).
+                 custom_deconv2d([0, self.image_size / 2, self.image_size / 2, 128],
+                                 k_h=5, k_w=5).
+                 conv_batch_norm().
+                 apply(tf.nn.relu).
+                 custom_deconv2d([0] + list(self.image_shape),
+                                 k_h=5, k_w=5).
+                 apply(tf.nn.tanh).
                  flatten())
