@@ -7,7 +7,7 @@ import datetime
 import dateutil.tz
 
 from infogan.algos.infogan_trainer import InfoGANTrainer
-from infogan.misc.datasets import Cifar10Dataset, MnistDataset
+from infogan.misc.datasets import Cifar10Dataset, MnistDataset, CelebADataset
 from infogan.misc.distributions import Uniform, Categorical, MeanBernoulli, \
     Gaussian
 from infogan.models.regularized_gan import MNISTRegularizedGAN, \
@@ -46,7 +46,8 @@ if __name__ == "__main__":
     #     image_shape=dataset.image_shape,
     # )
 
-    dataset = Cifar10Dataset()
+    dataset = CelebADataset()
+    # dataset = Cifar10Dataset()
     latent_spec = [
         (Uniform(128), False),
         (Categorical(10), True),

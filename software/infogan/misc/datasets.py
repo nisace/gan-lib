@@ -1,10 +1,10 @@
-import cPickle as pkl
 import os
 
+import cPickle as pkl
 import numpy as np
 from tensorflow.examples.tutorials import mnist
 
-from utils.file_system_utils import download, untar
+from utils.file_system_utils import download, extract_all
 
 
 class Dataset(object):
@@ -109,8 +109,52 @@ class Cifar10Dataset(object):
         download_folder = 'CIFAR-10'
         download_path = os.path.join(download_folder, origin_file_name)
         download(origin, download_path)
-        untar_path = os.path.join(download_folder, 'cifar-10-batches-py')
-        untar(download_path, download_folder, untar_path)
+        extract_path = extract_all(download_path)
+        x_train = []
+        y_train = []
+        for i in range(1, 6):
+            batch_path = os.path.join(extract_path, 'data_batch_{}'.format(i))
+            data, labels = self.load_batch(batch_path)
+            x_train.append(data)
+            y_train.append(labels)
+        x_train = np.concatenate(x_train)
+        # min = x_train.min(axis=(1, 2), keepdims=True)
+        # max = x_train.max(axis=(1, 2), keepdims=True)
+        # x_train = ((x_train - min) / (max - min) - 0.5) * 2
+        x_train = x_train / 127.5 - 1.
+        y_train = np.concatenate(y_train)
+        return x_train, y_train
+
+    def load_batch(self, batch_file_path):
+        with open(batch_file_path, 'r') as f:
+            d = pkl.load(f)
+        data = d['data']
+        data = data.astype(self.dtype)
+        data = data.reshape(data.shape[0], 3, 32, 32)  # (n, c, h, w)
+        # data -= np.mean(data, axis=(2, 3), keepdims=True)
+        # data /= np.std(data, axis=(2, 3), keepdims=True)
+        data = np.transpose(data, (0, 2, 3, 1))  # (n, h, w, c)
+        return data, d['labels']
+
+    def inverse_transform(self, data):
+        return data
+
+
+class CelebADataset(object):
+    def __init__(self, dtype=np.float32):
+        self.dtype = dtype
+        x_train, y_train = self.load_data()
+        self.train = Dataset(x_train, y_train)
+        self.image_dim = 32 * 32 * 3
+        self.image_shape = (32, 32, 3)
+
+    def load_data(self):
+        origin = 'https://www.dropbox.com/sh/8oqt9vytwxb3s4r/AADIKlz8PR9zr6Y20qbkunrba/Img/img_align_celeba.zip?dl=1&pv=1'
+        origin_file_name = os.path.basename(origin).split('?')[0]
+        download_folder = 'celebA'
+        download_path = os.path.join(download_folder, origin_file_name)
+        download(origin, download_path)
+        extract_all(download_path)
         x_train = []
         y_train = []
         for i in range(1, 6):
