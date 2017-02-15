@@ -195,10 +195,10 @@ class InfoGANTrainer(object):
                 raise NotImplementedError
             img_var = self.dataset.inverse_transform(img_var)
             rows = 10  # Number of rows and columns of images to generate
-            # (n, h, w, 1)
+            # (n, h, w, c)
             img_var = tf.reshape(img_var, [self.batch_size] + list(self.dataset.image_shape))
             img_var = img_var[:rows * rows, :, :, :]
-            # (rows, rows, h, w, 1)
+            # (rows, rows, h, w, c)
             imgs = tf.reshape(img_var, [rows, rows] + list(self.dataset.image_shape))
             stacked_img = []
             for row in xrange(rows):
@@ -210,6 +210,10 @@ class InfoGANTrainer(object):
             imgs = tf.expand_dims(imgs, 0)
             # Images where each row is a different sample from dist
             # and each column a different non reg latent sample.
+            imgs = tf.Print(imgs, [imgs[
+                                   :self.dataset.image_shape[0],
+                                   :self.dataset.image_shape[1],
+                                   ]], summarize=self.dataset.image_shape[0])
             tf.image_summary("image_%d_%s" % (dist_idx, dist.__class__.__name__), imgs)
 
 
