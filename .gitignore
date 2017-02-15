@@ -1,4 +1,5 @@
 MNIST
+CIFAR-10
 *.pyc
 .idea
 imgs
@@ -8,3 +9,4 @@ ckt
 *~
 docker-compose.yml
 docker/Dockerfile
+tmp.py

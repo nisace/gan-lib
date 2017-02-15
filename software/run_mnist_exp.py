@@ -1,16 +1,17 @@
-from __future__ import print_function
 from __future__ import absolute_import
-from infogan.misc.distributions import Uniform, Categorical, Gaussian, MeanBernoulli
+from __future__ import print_function
 
-import tensorflow as tf
 import os
-from infogan.misc.datasets import MnistDataset
-from infogan.models.regularized_gan import RegularizedGAN
-from infogan.algos.infogan_trainer import InfoGANTrainer
-from infogan.misc.utils import mkdir_p
-import dateutil
-import dateutil.tz
+
 import datetime
+import dateutil.tz
+
+from infogan.algos.infogan_trainer import InfoGANTrainer
+from infogan.misc.datasets import Cifar10Dataset, MnistDataset
+from infogan.misc.distributions import Uniform, Categorical, MeanBernoulli, \
+    Gaussian
+from infogan.models.regularized_gan import MNISTRegularizedGAN, \
+    CIFAR10RegularizedGAN, CelebAInfoGANRegularizedGAN, LSUN_DCGAN
 
 if __name__ == "__main__":
 
@@ -21,32 +22,60 @@ if __name__ == "__main__":
     root_checkpoint_dir = "ckt/mnist"
     batch_size = 128
     updates_per_epoch = 100
-    max_epoch = 50
+    max_epoch = 500
 
     exp_name = "mnist_%s" % timestamp
 
     log_dir = os.path.join(root_log_dir, exp_name)
     checkpoint_dir = os.path.join(root_checkpoint_dir, exp_name)
 
-    mkdir_p(log_dir)
-    mkdir_p(checkpoint_dir)
+    os.makedirs(log_dir)
+    os.makedirs(checkpoint_dir)
 
-    dataset = MnistDataset()
+    # dataset = MnistDataset()
+    # latent_spec = [
+    #     (Uniform(62), False),
+    #     (Categorical(10), True),
+    #     (Uniform(1, fix_std=True), True),
+    #     (Uniform(1, fix_std=True), True),
+    # ]
+    # model = MNISTRegularizedGAN(
+    #     output_dist=MeanBernoulli(dataset.image_dim),
+    #     latent_spec=latent_spec,
+    #     batch_size=batch_size,
+    #     image_shape=dataset.image_shape,
+    # )
 
+    dataset = Cifar10Dataset()
     latent_spec = [
-        (Uniform(62), False),
+        (Uniform(128), False),
         (Categorical(10), True),
-        (Uniform(1, fix_std=True), True),
-        (Uniform(1, fix_std=True), True),
+        (Categorical(10), True),
+        (Categorical(10), True),
+        (Categorical(10), True),
+        (Categorical(10), True),
+        (Categorical(10), True),
+        (Categorical(10), True),
+        (Categorical(10), True),
+        (Categorical(10), True),
+        (Categorical(10), True),
+        # (Uniform(1, fix_std=True), True),
+        # (Uniform(1, fix_std=True), True),
+        # (Uniform(1, fix_std=True), True),
+        # (Uniform(1, fix_std=True), True),
     ]
-
-    model = RegularizedGAN(
-        output_dist=MeanBernoulli(dataset.image_dim),
+    model = CelebAInfoGANRegularizedGAN(
+        output_dist=Gaussian(dataset.image_dim, fix_std=True),
         latent_spec=latent_spec,
         batch_size=batch_size,
         image_shape=dataset.image_shape,
-        network_type="mnist",
     )
+    # model = CIFAR10RegularizedGAN(
+    #     output_dist=MeanBernoulli(dataset.image_dim),
+    #     latent_spec=latent_spec,
+    #     batch_size=batch_size,
+    #     image_shape=dataset.image_shape,
+    # )
 
     algo = InfoGANTrainer(
         model=model,

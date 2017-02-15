@@ -241,7 +241,8 @@ class Gaussian(Distribution):
     def activate_dist(self, flat_dist):
         mean = flat_dist[:, :self.dim]
         if self._fix_std:
-            stddev = tf.ones_like(mean)
+            # stddev = tf.ones_like(mean)
+            stddev = tf.zeros_like(mean)
         else:
             stddev = tf.sqrt(tf.exp(flat_dist[:, self.dim:]))
         return dict(mean=mean, stddev=stddev)

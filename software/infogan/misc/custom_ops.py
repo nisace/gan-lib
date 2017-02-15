@@ -51,7 +51,7 @@ class fc_batch_norm(conv_batch_norm):
         return normalized_x.reshape(ori_shape)
 
 
-def leaky_rectify(x, leakiness=0.01):
+def leaky_rectify(x, leakiness=0.1):
     assert leakiness <= 1
     ret = tf.maximum(x, leakiness * x)
     # import ipdb; ipdb.set_trace()

@@ -23,6 +23,7 @@ class InfoGANTrainer(object):
                  info_reg_coeff=1.0,
                  discriminator_learning_rate=2e-4,
                  generator_learning_rate=2e-4,
+                 gen_disc_update_ratio=1,
                  ):
         """
         :type model: RegularizedGAN
@@ -43,6 +44,7 @@ class InfoGANTrainer(object):
         self.generator_trainer = None
         self.input_tensor = None
         self.log_vars = []
+        self.gen_disc_update_ratio = gen_disc_update_ratio
 
     def init_opt(self):
         self.input_tensor = input_tensor = tf.placeholder(tf.float32, [self.batch_size, self.dataset.image_dim])
@@ -193,10 +195,10 @@ class InfoGANTrainer(object):
                 raise NotImplementedError
             img_var = self.dataset.inverse_transform(img_var)
             rows = 10  # Number of rows and columns of images to generate
-            # (n, w, h, 1)
+            # (n, h, w, c)
             img_var = tf.reshape(img_var, [self.batch_size] + list(self.dataset.image_shape))
             img_var = img_var[:rows * rows, :, :, :]
-            # (rows, rows, w, h, 1)
+            # (rows, rows, h, w, c)
             imgs = tf.reshape(img_var, [rows, rows] + list(self.dataset.image_shape))
             stacked_img = []
             for row in xrange(rows):
@@ -208,6 +210,10 @@ class InfoGANTrainer(object):
             imgs = tf.expand_dims(imgs, 0)
             # Images where each row is a different sample from dist
             # and each column a different non reg latent sample.
+            imgs = tf.Print(imgs, [imgs[
+                                   :self.dataset.image_shape[0],
+                                   :self.dataset.image_shape[1],
+                                   ]], summarize=self.dataset.image_shape[0])
             tf.image_summary("image_%d_%s" % (dist_idx, dist.__class__.__name__), imgs)
 
 
@@ -240,9 +246,10 @@ class InfoGANTrainer(object):
                     pbar.update(i)
                     x, _ = self.dataset.train.next_batch(self.batch_size)
                     feed_dict = {self.input_tensor: x}
-                    log_vals = sess.run([self.discriminator_trainer] + log_vars, feed_dict)[1:]
                     sess.run(self.generator_trainer, feed_dict)
-                    all_log_vals.append(log_vals)
+                    if i % (self.gen_disc_update_ratio + 1) == 0:
+                        log_vals = sess.run([self.discriminator_trainer] + log_vars, feed_dict)[1:]
+                        all_log_vals.append(log_vals)
                     counter += 1
 
                     if counter % self.snapshot_interval == 0:
@@ -250,6 +257,7 @@ class InfoGANTrainer(object):
                         fn = saver.save(sess, "%s/%s.ckpt" % (self.checkpoint_dir, snapshot_name))
                         print("Model saved in file: %s" % fn)
 
+                # (n, h, w, c)
                 x, _ = self.dataset.train.next_batch(self.batch_size)
 
                 summary_str = sess.run(summary_op, {self.input_tensor: x})
