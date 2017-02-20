@@ -1,5 +1,6 @@
 MNIST
 CIFAR-10
+celebA
 *.pyc
 .idea
 imgs

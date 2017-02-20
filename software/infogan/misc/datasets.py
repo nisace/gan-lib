@@ -1,10 +1,12 @@
-import cPickle as pkl
 import os
+from glob import glob
 
+import cPickle as pkl
 import numpy as np
 from tensorflow.examples.tutorials import mnist
 
-from utils.file_system_utils import download, untar
+from utils.file_system_utils import download, extract_all
+from utils.image_utils import get_image
 
 
 class Dataset(object):
@@ -61,6 +63,16 @@ class Dataset(object):
             return self._images[start:end], self._labels[start:end]
 
 
+class Dataset_with_transform(Dataset):
+    def next_batch(self, batch_size):
+        x, y = super(Dataset_with_transform, self).next_batch(batch_size)
+        x = [get_image(str(img_path[0]), 108, 108,
+                       resize_height=32, resize_width=32,
+                       is_crop=True, is_grayscale=False) for img_path in x]
+        x = np.array(x).reshape(-1, 32 * 32 * 3)
+        return x, y
+
+
 class MnistDataset(object):
     def __init__(self):
         data_directory = "MNIST"
@@ -109,12 +121,11 @@ class Cifar10Dataset(object):
         download_folder = 'CIFAR-10'
         download_path = os.path.join(download_folder, origin_file_name)
         download(origin, download_path)
-        untar_path = os.path.join(download_folder, 'cifar-10-batches-py')
-        untar(download_path, download_folder, untar_path)
+        extract_path = extract_all(download_path)
         x_train = []
         y_train = []
         for i in range(1, 6):
-            batch_path = os.path.join(untar_path, 'data_batch_{}'.format(i))
+            batch_path = os.path.join(extract_path, 'data_batch_{}'.format(i))
             data, labels = self.load_batch(batch_path)
             x_train.append(data)
             y_train.append(labels)
@@ -136,6 +147,26 @@ class Cifar10Dataset(object):
         # data /= np.std(data, axis=(2, 3), keepdims=True)
         data = np.transpose(data, (0, 2, 3, 1))  # (n, h, w, c)
         return data, d['labels']
+
+    def inverse_transform(self, data):
+        return data
+
+
+class CelebADataset(object):
+    def __init__(self, dtype=np.float32):
+        self.dtype = dtype
+        self.train = Dataset_with_transform(self.images_paths())
+        self.image_dim = 32 * 32 * 3
+        self.image_shape = (32, 32, 3)
+
+    def images_paths(self):
+        origin = 'https://www.dropbox.com/sh/8oqt9vytwxb3s4r/AADIKlz8PR9zr6Y20qbkunrba/Img/img_align_celeba.zip?dl=1&pv=1'
+        origin_file_name = os.path.basename(origin).split('?')[0]
+        download_folder = 'celebA'
+        download_path = os.path.join(download_folder, origin_file_name)
+        download(origin, download_path)
+        extract_path = extract_all(download_path)
+        return np.array(glob(os.path.join(extract_path, '*.jpg')))
 
     def inverse_transform(self, data):
         return data

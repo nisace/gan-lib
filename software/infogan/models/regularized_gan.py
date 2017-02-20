@@ -201,7 +201,7 @@ class CelebAInfoGANRegularizedGAN(RegularizedGAN):
         with tf.variable_scope("g_net"):
             self.generator_template = \
                 (pt.template("input").
-                 custom_fully_connected(2 * 2 * 448).
+                 custom_fully_connected(self.image_size / 16 * self.image_size / 16 * 448).
                  fc_batch_norm().
                  apply(tf.nn.relu).
                  reshape([-1, self.image_size / 16, self.image_size / 16, 448]).

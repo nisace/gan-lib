@@ -3,3 +3,4 @@ progressbar
 python-dateutil
 ipdb
 tqdm
+pillow
