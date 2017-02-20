@@ -8,6 +8,7 @@ from tensorflow.examples.tutorials import mnist
 from utils.file_system_utils import download, extract_all
 from utils.image_utils import get_image
 
+DATA_FOLDER = 'data'
 
 class Dataset(object):
     def __init__(self, images, labels=None):
@@ -67,15 +68,15 @@ class Dataset_with_transform(Dataset):
     def next_batch(self, batch_size):
         x, y = super(Dataset_with_transform, self).next_batch(batch_size)
         x = [get_image(str(img_path[0]), 108, 108,
-                       resize_height=32, resize_width=32,
+                       resize_height=64, resize_width=64,
                        is_crop=True, is_grayscale=False) for img_path in x]
-        x = np.array(x).reshape(-1, 32 * 32 * 3)
+        x = np.array(x).reshape(-1, 64 * 64 * 3)
         return x, y
 
 
 class MnistDataset(object):
     def __init__(self):
-        data_directory = "MNIST"
+        data_directory = os.path.join(DATA_FOLDER, "MNIST")
         if not os.path.exists(data_directory):
             os.makedirs(data_directory)
         dataset = mnist.input_data.read_data_sets(data_directory)
@@ -118,7 +119,7 @@ class Cifar10Dataset(object):
     def load_data(self):
         origin = 'http://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz'
         origin_file_name = os.path.basename(origin)
-        download_folder = 'CIFAR-10'
+        download_folder = os.path.join(DATA_FOLDER, 'CIFAR-10')
         download_path = os.path.join(download_folder, origin_file_name)
         download(origin, download_path)
         extract_path = extract_all(download_path)
@@ -130,9 +131,6 @@ class Cifar10Dataset(object):
             x_train.append(data)
             y_train.append(labels)
         x_train = np.concatenate(x_train)
-        # min = x_train.min(axis=(1, 2), keepdims=True)
-        # max = x_train.max(axis=(1, 2), keepdims=True)
-        # x_train = ((x_train - min) / (max - min) - 0.5) * 2
         x_train = x_train / 127.5 - 1.
         y_train = np.concatenate(y_train)
         return x_train, y_train
@@ -143,8 +141,6 @@ class Cifar10Dataset(object):
         data = d['data']
         data = data.astype(self.dtype)
         data = data.reshape(data.shape[0], 3, 32, 32)  # (n, c, h, w)
-        # data -= np.mean(data, axis=(2, 3), keepdims=True)
-        # data /= np.std(data, axis=(2, 3), keepdims=True)
         data = np.transpose(data, (0, 2, 3, 1))  # (n, h, w, c)
         return data, d['labels']
 
@@ -156,13 +152,13 @@ class CelebADataset(object):
     def __init__(self, dtype=np.float32):
         self.dtype = dtype
         self.train = Dataset_with_transform(self.images_paths())
-        self.image_dim = 32 * 32 * 3
-        self.image_shape = (32, 32, 3)
+        self.image_dim = 64 * 64 * 3
+        self.image_shape = (64, 64, 3)
 
     def images_paths(self):
         origin = 'https://www.dropbox.com/sh/8oqt9vytwxb3s4r/AADIKlz8PR9zr6Y20qbkunrba/Img/img_align_celeba.zip?dl=1&pv=1'
         origin_file_name = os.path.basename(origin).split('?')[0]
-        download_folder = 'celebA'
+        download_folder = os.path.join(DATA_FOLDER, 'celebA')
         download_path = os.path.join(download_folder, origin_file_name)
         download(origin, download_path)
         extract_path = extract_all(download_path)

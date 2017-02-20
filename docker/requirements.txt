@@ -1,6 +1,8 @@
-prettytensor
+prettytensor==0.7.3
 progressbar
 python-dateutil
 ipdb
 tqdm
 pillow
+pyyaml
+click

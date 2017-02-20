@@ -9,6 +9,14 @@ from tqdm import tqdm
 
 
 #########################################################
+# PATH
+#########################################################
+def make_exists(dir_path):
+    """ Creates the directory if it does not exists. """
+    if not os.path.exists(dir_path):
+        os.makedirs(dir_path)
+
+#########################################################
 # DOWNLOADS
 #########################################################
 def urlretrieve(url, file_path, progbar=None, data=None):

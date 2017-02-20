@@ -134,7 +134,7 @@ class RegularizedGAN(object):
         return self.latent_dist.join_dist_infos(ret)
 
 
-class MNISTRegularizedGAN(RegularizedGAN):
+class MNISTInfoGAN(RegularizedGAN):
     def build_network(self):
         with tf.variable_scope("d_net"):
             shared_template = \
@@ -175,7 +175,7 @@ class MNISTRegularizedGAN(RegularizedGAN):
                  flatten())
 
 
-class CelebAInfoGANRegularizedGAN(RegularizedGAN):
+class CelebAInfoGAN(RegularizedGAN):
     def build_network(self):
         with tf.variable_scope("d_net"):
             shared_template = \
