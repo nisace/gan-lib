@@ -8,6 +8,7 @@ from tensorflow.examples.tutorials import mnist
 from utils.file_system_utils import download, extract_all
 from utils.image_utils import get_image
 
+DATA_FOLDER = 'data'
 
 class Dataset(object):
     def __init__(self, images, labels=None):
@@ -75,7 +76,7 @@ class Dataset_with_transform(Dataset):
 
 class MnistDataset(object):
     def __init__(self):
-        data_directory = "MNIST"
+        data_directory = os.path.join(DATA_FOLDER, "MNIST")
         if not os.path.exists(data_directory):
             os.makedirs(data_directory)
         dataset = mnist.input_data.read_data_sets(data_directory)
@@ -118,7 +119,7 @@ class Cifar10Dataset(object):
     def load_data(self):
         origin = 'http://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz'
         origin_file_name = os.path.basename(origin)
-        download_folder = 'CIFAR-10'
+        download_folder = os.path.join(DATA_FOLDER, 'CIFAR-10')
         download_path = os.path.join(download_folder, origin_file_name)
         download(origin, download_path)
         extract_path = extract_all(download_path)
@@ -157,7 +158,7 @@ class CelebADataset(object):
     def images_paths(self):
         origin = 'https://www.dropbox.com/sh/8oqt9vytwxb3s4r/AADIKlz8PR9zr6Y20qbkunrba/Img/img_align_celeba.zip?dl=1&pv=1'
         origin_file_name = os.path.basename(origin).split('?')[0]
-        download_folder = 'celebA'
+        download_folder = os.path.join(DATA_FOLDER, 'celebA')
         download_path = os.path.join(download_folder, origin_file_name)
         download(origin, download_path)
         extract_path = extract_all(download_path)
