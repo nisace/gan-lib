@@ -130,9 +130,6 @@ class Cifar10Dataset(object):
             x_train.append(data)
             y_train.append(labels)
         x_train = np.concatenate(x_train)
-        # min = x_train.min(axis=(1, 2), keepdims=True)
-        # max = x_train.max(axis=(1, 2), keepdims=True)
-        # x_train = ((x_train - min) / (max - min) - 0.5) * 2
         x_train = x_train / 127.5 - 1.
         y_train = np.concatenate(y_train)
         return x_train, y_train
@@ -143,8 +140,6 @@ class Cifar10Dataset(object):
         data = d['data']
         data = data.astype(self.dtype)
         data = data.reshape(data.shape[0], 3, 32, 32)  # (n, c, h, w)
-        # data -= np.mean(data, axis=(2, 3), keepdims=True)
-        # data /= np.std(data, axis=(2, 3), keepdims=True)
         data = np.transpose(data, (0, 2, 3, 1))  # (n, h, w, c)
         return data, d['labels']
 

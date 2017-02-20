@@ -7,11 +7,11 @@ import datetime
 import dateutil.tz
 
 from infogan.algos.infogan_trainer import InfoGANTrainer
-from infogan.misc.datasets import Cifar10Dataset, MnistDataset, CelebADataset
+from infogan.misc.datasets import MnistDataset, CelebADataset
 from infogan.misc.distributions import Uniform, Categorical, MeanBernoulli, \
     Gaussian
-from infogan.models.regularized_gan import MNISTRegularizedGAN, \
-    CIFAR10RegularizedGAN, CelebAInfoGANRegularizedGAN, LSUN_DCGAN
+from infogan.models.regularized_gan import MNISTInfoGAN, \
+    CelebAInfoGAN
 from utils.file_system_utils import make_exists
 
 
@@ -39,7 +39,7 @@ def train(dataset_name):
             (Uniform(1, fix_std=True), True),
             (Uniform(1, fix_std=True), True),
         ]
-        model = MNISTRegularizedGAN(
+        model = MNISTInfoGAN(
             output_dist=MeanBernoulli(dataset.image_dim),
             latent_spec=latent_spec,
             batch_size=batch_size,
@@ -48,7 +48,6 @@ def train(dataset_name):
 
     elif dataset_name == 'celebA':
         dataset = CelebADataset()
-        # dataset = Cifar10Dataset()
         latent_spec = [
             (Uniform(128), False),
             (Categorical(10), True),
@@ -61,25 +60,14 @@ def train(dataset_name):
             (Categorical(10), True),
             (Categorical(10), True),
             (Categorical(10), True),
-            # (Uniform(1, fix_std=True), True),
-            # (Uniform(1, fix_std=True), True),
-            # (Uniform(1, fix_std=True), True),
-            # (Uniform(1, fix_std=True), True),
         ]
-        model = CelebAInfoGANRegularizedGAN(
+        model = CelebAInfoGAN(
             output_dist=Gaussian(dataset.image_dim, fix_std=True),
             latent_spec=latent_spec,
             batch_size=batch_size,
             image_shape=dataset.image_shape,
         )
-        # model = CIFAR10RegularizedGAN(
-        #     output_dist=MeanBernoulli(dataset.image_dim),
-        #     latent_spec=latent_spec,
-        #     batch_size=batch_size,
-        #     image_shape=dataset.image_shape,
-        # )
     else:
-        # print('Invalid dataset_name: {}'.format(dataset_name))
         raise ValueError('Invalid dataset_name: {}'.format(dataset_name))
 
     algo = InfoGANTrainer(
