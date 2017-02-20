@@ -67,9 +67,9 @@ class Dataset_with_transform(Dataset):
     def next_batch(self, batch_size):
         x, y = super(Dataset_with_transform, self).next_batch(batch_size)
         x = [get_image(str(img_path[0]), 108, 108,
-                       resize_height=32, resize_width=32,
+                       resize_height=64, resize_width=64,
                        is_crop=True, is_grayscale=False) for img_path in x]
-        x = np.array(x).reshape(-1, 32 * 32 * 3)
+        x = np.array(x).reshape(-1, 64 * 64 * 3)
         return x, y
 
 
@@ -156,8 +156,8 @@ class CelebADataset(object):
     def __init__(self, dtype=np.float32):
         self.dtype = dtype
         self.train = Dataset_with_transform(self.images_paths())
-        self.image_dim = 32 * 32 * 3
-        self.image_shape = (32, 32, 3)
+        self.image_dim = 64 * 64 * 3
+        self.image_shape = (64, 64, 3)
 
     def images_paths(self):
         origin = 'https://www.dropbox.com/sh/8oqt9vytwxb3s4r/AADIKlz8PR9zr6Y20qbkunrba/Img/img_align_celeba.zip?dl=1&pv=1'
