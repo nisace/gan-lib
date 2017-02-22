@@ -241,11 +241,19 @@ class Gaussian(Distribution):
     def activate_dist(self, flat_dist):
         mean = flat_dist[:, :self.dim]
         if self._fix_std:
-            # stddev = tf.ones_like(mean)
-            stddev = tf.zeros_like(mean)
+            stddev = tf.ones_like(mean)
         else:
             stddev = tf.sqrt(tf.exp(flat_dist[:, self.dim:]))
         return dict(mean=mean, stddev=stddev)
+
+
+class MeanGaussian(Gaussian):
+    """
+    Behaves almost the same as the usual Gaussian distribution, except that
+     when sampling from it, directly return the mean instead of sampling
+    """
+    def sample(self, dist_info):
+        return dist_info["mean"]
 
 
 class Uniform(Gaussian):
@@ -319,13 +327,6 @@ class MeanBernoulli(Bernoulli):
 
     def nonreparam_logli(self, x_var, dist_info):
         return tf.zeros_like(x_var[:, 0])
-
-
-# class MeanCenteredUniform(MeanBernoulli):
-#     """
-#     Behaves almost the same as the usual Bernoulli distribution, except that when sampling from it, directly
-#     return the mean instead of sampling binary values
-#     """
 
 
 class Product(Distribution):

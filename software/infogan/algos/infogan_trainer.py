@@ -247,7 +247,7 @@ class InfoGANTrainer(object):
                     x, _ = self.dataset.train.next_batch(self.batch_size)
                     feed_dict = {self.input_tensor: x}
                     sess.run(self.generator_trainer, feed_dict)
-                    if i % (self.gen_disc_update_ratio + 1) == 0:
+                    if i % self.gen_disc_update_ratio == 0:
                         log_vals = sess.run([self.discriminator_trainer] + log_vars, feed_dict)[1:]
                         all_log_vals.append(log_vals)
                     counter += 1

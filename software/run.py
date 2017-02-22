@@ -9,7 +9,7 @@ import dateutil.tz
 from infogan.algos.infogan_trainer import InfoGANTrainer
 from infogan.misc.datasets import MnistDataset, CelebADataset
 from infogan.misc.distributions import Uniform, Categorical, MeanBernoulli, \
-    Gaussian
+    MeanGaussian
 from infogan.models.regularized_gan import MNISTInfoGAN, \
     CelebAInfoGAN
 from utils.file_system_utils import make_exists
@@ -62,7 +62,7 @@ def train(dataset_name):
             (Categorical(10), True),
         ]
         model = CelebAInfoGAN(
-            output_dist=Gaussian(dataset.image_dim, fix_std=True),
+            output_dist=MeanGaussian(dataset.image_dim, fix_std=True),
             latent_spec=latent_spec,
             batch_size=batch_size,
             image_shape=dataset.image_shape,
