@@ -18,11 +18,11 @@ fi
 # Change image name in Dockerfile
 if [ $2 = $cpu ]
     then
-        image="gcr.io/tensorflow/tensorflow"
+        image="gcr.io/tensorflow/tensorflow:0.12.1"
         local_image="ganlibcpu"
         cp docker-compose-cpu.example.yml docker-compose.yml
     else
-        image="gcr.io/tensorflow/tensorflow:latest-gpu"
+        image="gcr.io/tensorflow/tensorflow:0.12.1-gpu"
         local_image="ganlibgpu"
         cp docker-compose-gpu.example.yml docker-compose.yml
 fi
