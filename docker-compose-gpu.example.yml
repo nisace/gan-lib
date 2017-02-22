@@ -12,7 +12,3 @@ worker:
     - "/dev/nvidiactl:/dev/nvidiactl"
     - "/dev/nvidia-modeset:/dev/nvidia-modeset"
     - "/dev/nvidia-uvm:/dev/nvidia-uvm"
-  entrypoint:
-    - bash
-  stdin_open: true
-  tty: true
