@@ -124,7 +124,7 @@ class InfoGANTrainer(object):
             self.generator_trainer = pt.apply_optimizer(generator_optimizer, losses=[generator_loss], var_list=g_vars)
 
             for k, v in self.log_vars:
-                tf.scalar_summary(k, v)
+                tf.summary.scalar(name=k, tensor=v)
 
         with pt.defaults_scope(phase=pt.Phase.test):
             with tf.variable_scope("model", reuse=True) as scope:
@@ -210,24 +210,21 @@ class InfoGANTrainer(object):
             imgs = tf.expand_dims(imgs, 0)
             # Images where each row is a different sample from dist
             # and each column a different non reg latent sample.
-            imgs = tf.Print(imgs, [imgs[
-                                   :self.dataset.image_shape[0],
-                                   :self.dataset.image_shape[1],
-                                   ]], summarize=self.dataset.image_shape[0])
-            tf.image_summary("image_%d_%s" % (dist_idx, dist.__class__.__name__), imgs)
+            name = 'image_{}_{}'.format(dist_idx, dist.__class__.__name__)
+            tf.summary.image(name=name, tensor=imgs)
 
 
     def train(self):
 
         self.init_opt()
 
-        init = tf.initialize_all_variables()
+        init = tf.global_variables_initializer()
 
         with tf.Session() as sess:
             sess.run(init)
 
-            summary_op = tf.merge_all_summaries()
-            summary_writer = tf.train.SummaryWriter(self.log_dir, sess.graph)
+            summary_op = tf.summary.merge_all()
+            summary_writer = tf.summary.FileWriter(self.log_dir, sess.graph)
 
             saver = tf.train.Saver()
 
