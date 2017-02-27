@@ -15,7 +15,7 @@ from infogan.models.regularized_gan import MNISTInfoGAN, \
 from utils.file_system_utils import make_exists
 
 
-def train(dataset_name):
+def train(dataset_name, learning_params):
     now = datetime.datetime.now(dateutil.tz.tzlocal())
     timestamp = now.strftime('%Y_%m_%d_%H_%M_%S')
 
@@ -28,8 +28,9 @@ def train(dataset_name):
     make_exists(checkpoint_dir)
 
     batch_size = 128
-    updates_per_epoch = 100
-    max_epoch = 500
+    updates_per_epoch = learning_params['updates_per_epoch']
+    max_epoch = learning_params['max_epoch']
+
 
     if dataset_name == 'mnist':
         dataset = MnistDataset()

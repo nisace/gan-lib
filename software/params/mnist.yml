@@ -1,1 +1,5 @@
 dataset_name: mnist
+
+learning_params:
+  updates_per_epoch: 100
+  max_epoch: 60
