@@ -1,35 +1,22 @@
 # InfoGAN
 
-Code from https://github.com/openai/InfoGAN used to start some GAN implementations. Code for reproducing key results in the paper [InfoGAN: Interpretable Representation Learning by Information Maximizing Generative Adversarial Nets](https://arxiv.org/abs/1606.03657) by Xi Chen, Yan Duan, Rein Houthooft, John Schulman, Ilya Sutskever, Pieter Abbeel.
-
-## Dependencies
-
-This project currently requires the dev version of TensorFlow available on Github: https://github.com/tensorflow/tensorflow. As of the release, the latest commit is [79174a](https://github.com/tensorflow/tensorflow/commit/79174afa30046ecdc437b531812f2cb41a32695e).
-
-In addition, please `pip install` the following packages:
-- `prettytensor`
-- `progressbar`
-- `python-dateutil`
+This repository was originally copied from https://github.com/openai/InfoGAN. The current version simply adds the CelebA experiment to the original repository which contained MNIST experiment only.
 
 ## Running in Docker
 
-```bash
-$ git clone git@github.com:openai/InfoGAN.git
-$ docker run -v $(pwd)/InfoGAN:/InfoGAN -w /InfoGAN -it -p 8888:8888 gcr.io/tensorflow/tensorflow:r0.9rc0-devel
-root@X:/InfoGAN# pip install -r requirements.txt
-root@X:/InfoGAN# python launchers/run_mnist_exp.py
-```
-
-## Running Experiment
-
-We provide the source code to run the MNIST example:
+To run in docker, use the docker.sh script:
 
 ```bash
-PYTHONPATH='.' python launchers/run_mnist_exp.py
+$ git clone git@github.com:nisace/gan-lib.git
+$ cd gan-lib/
+$ ./docker.sh {build, run} {cpu, gpu}
+root@X:/gan-lib# python manage.py train -p {params/mnist.yml, params/celebA.yml}
 ```
+
+## Seeing results
 
 You can launch TensorBoard to view the generated images:
 
 ```bash
-tensorboard --logdir logs/mnist
+tensorboard --logdir logs/
 ```
