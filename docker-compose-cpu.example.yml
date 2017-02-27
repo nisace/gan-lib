@@ -1,0 +1,4 @@
+worker:
+  build: docker
+  volumes:
+    - "/pwd/software:/gan-lib"

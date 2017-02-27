@@ -1,0 +1,5 @@
+dataset_name: celebA
+
+learning_params:
+  updates_per_epoch: 100
+  max_epoch: 500

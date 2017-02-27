@@ -1,8 +1,11 @@
-MNIST
 *.pyc
-.idea
-imgs
-logs
-ckt
+.idea/*
 .ipynb_checkpoints
 *~
+
+docker-compose.yml
+docker/Dockerfile
+software/data/*
+software/logs/*
+software/ckt/*
+software/tmp.py
