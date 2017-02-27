@@ -20,3 +20,13 @@ You can launch TensorBoard to view the generated images:
 ```bash
 tensorboard --logdir logs/
 ```
+
+## Examples of generated images
+
+MNIST:
+
+![result](software/samples/mnist.png)
+
+CelebA:
+
+![result](software/samples/celebA.png)
