@@ -9,7 +9,7 @@ import sys
 TINY = 1e-8
 
 
-class InfoGANTrainer(object):
+class GANTrainer(object):
     def __init__(self,
                  model,
                  batch_size,
@@ -46,6 +46,12 @@ class InfoGANTrainer(object):
         self.log_vars = []
         self.gen_disc_update_ratio = gen_disc_update_ratio
 
+    def get_discriminator_loss(self, real_d, fake_d):
+        raise NotImplementedError
+
+    def get_generator_loss(self, fake_d):
+        raise NotImplementedError
+
     def init_opt(self):
         self.input_tensor = input_tensor = tf.placeholder(tf.float32, [self.batch_size, self.dataset.image_dim])
 
@@ -58,8 +64,8 @@ class InfoGANTrainer(object):
 
             reg_z = self.model.reg_z(z_var)
 
-            discriminator_loss = - tf.reduce_mean(tf.log(real_d + TINY) + tf.log(1. - fake_d + TINY))
-            generator_loss = - tf.reduce_mean(tf.log(fake_d + TINY))
+            discriminator_loss = self.get_discriminator_loss(real_d, fake_d)
+            generator_loss = self.get_generator_loss(fake_d)
 
             self.log_vars.append(("discriminator_loss", discriminator_loss))
             self.log_vars.append(("generator_loss", generator_loss))
@@ -128,9 +134,107 @@ class InfoGANTrainer(object):
 
         with pt.defaults_scope(phase=pt.Phase.test):
             with tf.variable_scope("model", reuse=True) as scope:
-                self.visualize_all_factors()
+                self.get_samples()
 
-    def visualize_all_factors(self):
+    def add_images_to_summary(self, z_var, images_name):
+            _, x_dist_info = self.model.generate(z_var)
+
+            # just take the mean image
+            if isinstance(self.model.output_dist, Bernoulli):
+                img_var = x_dist_info["p"]
+            elif isinstance(self.model.output_dist, Gaussian):
+                img_var = x_dist_info["mean"]
+            else:
+                raise NotImplementedError
+            img_var = self.dataset.inverse_transform(img_var)
+            rows = 10  # Number of rows and columns of images to generate
+            # (n, h, w, c)
+            img_var = tf.reshape(img_var, [self.batch_size] + list(self.dataset.image_shape))
+            img_var = img_var[:rows * rows, :, :, :]
+            # (rows, rows, h, w, c)
+            imgs = tf.reshape(img_var, [rows, rows] + list(self.dataset.image_shape))
+            stacked_img = []
+            for row in xrange(rows):
+                row_img = []
+                for col in xrange(rows):
+                    row_img.append(imgs[row, col, :, :, :])
+                stacked_img.append(tf.concat(1, row_img))
+            imgs = tf.concat(0, stacked_img)
+            imgs = tf.expand_dims(imgs, 0)
+            tf.summary.image(name=images_name, tensor=imgs)
+
+    def get_samples(self):
+        raise NotImplementedError
+
+    def update(self, sess, i, log_vars, all_log_vals):
+        raise NotImplementedError
+
+    def train(self):
+        self.init_opt()
+
+        init = tf.global_variables_initializer()
+
+        with tf.Session() as sess:
+            sess.run(init)
+
+            summary_op = tf.summary.merge_all()
+            summary_writer = tf.summary.FileWriter(self.log_dir, sess.graph)
+
+            saver = tf.train.Saver()
+
+            counter = 0
+
+            log_vars = [x for _, x in self.log_vars]
+            log_keys = [x for x, _ in self.log_vars]
+
+            for epoch in range(self.max_epoch):
+                widgets = ["epoch #%d|" % epoch, Percentage(), Bar(), ETA()]
+                pbar = ProgressBar(maxval=self.updates_per_epoch, widgets=widgets)
+                pbar.start()
+
+                all_log_vals = []
+                for i in range(self.updates_per_epoch):
+                    pbar.update(i)
+                    # x, _ = self.dataset.train.next_batch(self.batch_size)
+                    # feed_dict = {self.input_tensor: x}
+                    # sess.run(self.generator_trainer, feed_dict)
+                    # if i % self.gen_disc_update_ratio == 0:
+                    #     log_vals = sess.run([self.discriminator_trainer] + log_vars, feed_dict)[1:]
+                    #     all_log_vals.append(log_vals)
+                    all_log_vals = self.update(sess, i, log_vars, all_log_vals)
+                    counter += 1
+
+                    if counter % self.snapshot_interval == 0:
+                        snapshot_name = "%s_%s" % (self.exp_name, str(counter))
+                        fn = saver.save(sess, "%s/%s.ckpt" % (self.checkpoint_dir, snapshot_name))
+                        print("Model saved in file: %s" % fn)
+
+                # (n, h, w, c)
+                x, _ = self.dataset.train.next_batch(self.batch_size)
+
+                summary_str = sess.run(summary_op, {self.input_tensor: x})
+                summary_writer.add_summary(summary_str, counter)
+
+                avg_log_vals = np.mean(np.array(all_log_vals), axis=0)
+                log_dict = dict(zip(log_keys, avg_log_vals))
+
+                log_line = "; ".join("%s: %s" % (str(k), str(v)) for k, v in zip(log_keys, avg_log_vals))
+                print("Epoch %d | " % (epoch) + log_line)
+                sys.stdout.flush()
+                if np.any(np.isnan(avg_log_vals)):
+                    raise ValueError("NaN detected!")
+
+
+class InfoGANTrainer(GANTrainer):
+    def get_discriminator_loss(self, real_d, fake_d):
+        real = tf.log(real_d + TINY)
+        fake = tf.log(1. - fake_d + TINY)
+        return - tf.reduce_mean(real + fake)
+
+    def get_generator_loss(self, fake_d):
+        return - tf.reduce_mean(tf.log(fake_d + TINY))
+
+    def get_samples(self):
         with tf.Session():
             # (n, d) with 10 * 10 samples + other samples
             fixed_noncat = np.concatenate([
@@ -183,88 +287,49 @@ class InfoGANTrainer(object):
             else:
                 raise NotImplementedError
             z_var = tf.constant(np.concatenate([fixed_noncat, cur_cat], axis=1))
-
-            _, x_dist_info = self.model.generate(z_var)
-
-            # just take the mean image
-            if isinstance(self.model.output_dist, Bernoulli):
-                img_var = x_dist_info["p"]
-            elif isinstance(self.model.output_dist, Gaussian):
-                img_var = x_dist_info["mean"]
-            else:
-                raise NotImplementedError
-            img_var = self.dataset.inverse_transform(img_var)
-            rows = 10  # Number of rows and columns of images to generate
-            # (n, h, w, c)
-            img_var = tf.reshape(img_var, [self.batch_size] + list(self.dataset.image_shape))
-            img_var = img_var[:rows * rows, :, :, :]
-            # (rows, rows, h, w, c)
-            imgs = tf.reshape(img_var, [rows, rows] + list(self.dataset.image_shape))
-            stacked_img = []
-            for row in xrange(rows):
-                row_img = []
-                for col in xrange(rows):
-                    row_img.append(imgs[row, col, :, :, :])
-                stacked_img.append(tf.concat(1, row_img))
-            imgs = tf.concat(0, stacked_img)
-            imgs = tf.expand_dims(imgs, 0)
             # Images where each row is a different sample from dist
             # and each column a different non reg latent sample.
             name = 'image_{}_{}'.format(dist_idx, dist.__class__.__name__)
-            tf.summary.image(name=name, tensor=imgs)
+            self.add_images_to_summary(z_var, name)
+
+    def update(self, sess, i, log_vars, all_log_vals):
+        x, _ = self.dataset.train.next_batch(self.batch_size)
+        feed_dict = {self.input_tensor: x}
+        sess.run(self.generator_trainer, feed_dict)
+        if i % self.gen_disc_update_ratio == 0:
+            log_vals = sess.run([self.discriminator_trainer] + log_vars, feed_dict)[1:]
+            all_log_vals.append(log_vals)
+        return all_log_vals
 
 
-    def train(self):
+class WassersteinGANTrainer(GANTrainer):
+    def get_discriminator_loss(self, real_d, fake_d):
+        return tf.reduce_mean(real_d - fake_d)
 
-        self.init_opt()
+    def get_generator_loss(self, fake_d):
+        return tf.reduce_mean(fake_d)
 
-        init = tf.global_variables_initializer()
+    def get_samples(self):
+        with tf.Session():
+            # (n, d) with 10 * 10 samples + other samples
+            z_var = np.concatenate([
+                np.tile(
+                    self.model.nonreg_latent_dist.sample_prior(10).eval(),
+                    [10, 1]
+                ),
+                self.model.nonreg_latent_dist.sample_prior(
+                    self.batch_size - 100).eval(),
+            ], axis=0)
+        self.add_images_to_summary(z_var, 'image')
 
-        with tf.Session() as sess:
-            sess.run(init)
-
-            summary_op = tf.summary.merge_all()
-            summary_writer = tf.summary.FileWriter(self.log_dir, sess.graph)
-
-            saver = tf.train.Saver()
-
-            counter = 0
-
-            log_vars = [x for _, x in self.log_vars]
-            log_keys = [x for x, _ in self.log_vars]
-
-            for epoch in range(self.max_epoch):
-                widgets = ["epoch #%d|" % epoch, Percentage(), Bar(), ETA()]
-                pbar = ProgressBar(maxval=self.updates_per_epoch, widgets=widgets)
-                pbar.start()
-
-                all_log_vals = []
-                for i in range(self.updates_per_epoch):
-                    pbar.update(i)
-                    x, _ = self.dataset.train.next_batch(self.batch_size)
-                    feed_dict = {self.input_tensor: x}
-                    sess.run(self.generator_trainer, feed_dict)
-                    if i % self.gen_disc_update_ratio == 0:
-                        log_vals = sess.run([self.discriminator_trainer] + log_vars, feed_dict)[1:]
-                        all_log_vals.append(log_vals)
-                    counter += 1
-
-                    if counter % self.snapshot_interval == 0:
-                        snapshot_name = "%s_%s" % (self.exp_name, str(counter))
-                        fn = saver.save(sess, "%s/%s.ckpt" % (self.checkpoint_dir, snapshot_name))
-                        print("Model saved in file: %s" % fn)
-
-                # (n, h, w, c)
-                x, _ = self.dataset.train.next_batch(self.batch_size)
-
-                summary_str = sess.run(summary_op, {self.input_tensor: x})
-                summary_writer.add_summary(summary_str, counter)
-
-                avg_log_vals = np.mean(np.array(all_log_vals), axis=0)
-                log_dict = dict(zip(log_keys, avg_log_vals))
-
-                log_line = "; ".join("%s: %s" % (str(k), str(v)) for k, v in zip(log_keys, avg_log_vals))
-                print("Epoch %d | " % (epoch) + log_line)
-                sys.stdout.flush()
-                if np.any(np.isnan(avg_log_vals)):
-                    raise ValueError("NaN detected!")
+    def update(self, sess, i, log_vars, all_log_vals):
+        for i in range(self.n_critic):
+            x, _ = self.dataset.train.next_batch(self.batch_size)
+            feed_dict = {self.input_tensor: x}
+            log_vals = sess.run([self.discriminator_trainer] + log_vars,
+                                feed_dict)[1:]
+            all_log_vals.append(log_vals)
+        x, _ = self.dataset.train.next_batch(self.batch_size)
+        feed_dict = {self.input_tensor: x}
+        sess.run(self.generator_trainer, feed_dict)
+        return all_log_vals
