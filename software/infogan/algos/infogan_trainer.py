@@ -195,12 +195,6 @@ class GANTrainer(object):
                 all_log_vals = []
                 for i in range(self.updates_per_epoch):
                     pbar.update(i)
-                    # x, _ = self.dataset.train.next_batch(self.batch_size)
-                    # feed_dict = {self.input_tensor: x}
-                    # sess.run(self.generator_trainer, feed_dict)
-                    # if i % self.gen_disc_update_ratio == 0:
-                    #     log_vals = sess.run([self.discriminator_trainer] + log_vars, feed_dict)[1:]
-                    #     all_log_vals.append(log_vals)
                     all_log_vals = self.update(sess, i, log_vars, all_log_vals)
                     counter += 1
 
@@ -303,6 +297,10 @@ class InfoGANTrainer(GANTrainer):
 
 
 class WassersteinGANTrainer(GANTrainer):
+    def __init__(self, **kwargs):
+        self.n_critic = 5
+        super(WassersteinGANTrainer, self).__init__(**kwargs)
+
     def get_discriminator_loss(self, real_d, fake_d):
         return tf.reduce_mean(real_d - fake_d)
 

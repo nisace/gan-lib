@@ -6,7 +6,7 @@ import os
 import datetime
 import dateutil.tz
 
-from infogan.algos.infogan_trainer import InfoGANTrainer
+from infogan.algos.infogan_trainer import InfoGANTrainer, WassersteinGANTrainer
 from infogan.misc.datasets import MnistDataset, CelebADataset
 from infogan.misc.distributions import Uniform, Categorical, MeanBernoulli, \
     MeanGaussian
@@ -15,13 +15,13 @@ from infogan.models.regularized_gan import MNISTInfoGAN, \
 from utils.file_system_utils import make_exists
 
 
-def train(dataset_name, learning_params):
+def train(model_name, learning_params):
     now = datetime.datetime.now(dateutil.tz.tzlocal())
     timestamp = now.strftime('%Y_%m_%d_%H_%M_%S')
 
-    root_log_dir = os.path.join('logs', dataset_name)
-    root_checkpoint_dir = os.path.join('ckt', dataset_name)
-    experiment_name = '{}_{}'.format(dataset_name, timestamp)
+    root_log_dir = os.path.join('logs', model_name)
+    root_checkpoint_dir = os.path.join('ckt', model_name)
+    experiment_name = '{}_{}'.format(model_name, timestamp)
     log_dir = os.path.join(root_log_dir, experiment_name)
     checkpoint_dir = os.path.join(root_checkpoint_dir, experiment_name)
     make_exists(log_dir)
@@ -30,9 +30,9 @@ def train(dataset_name, learning_params):
     batch_size = 128
     updates_per_epoch = learning_params['updates_per_epoch']
     max_epoch = learning_params['max_epoch']
+    trainer = learning_params['trainer']
 
-
-    if dataset_name == 'mnist':
+    if model_name == 'mnist_infogan':
         dataset = MnistDataset()
         latent_spec = [
             (Uniform(62), False),
@@ -47,7 +47,7 @@ def train(dataset_name, learning_params):
             image_shape=dataset.image_shape,
         )
 
-    elif dataset_name == 'celebA':
+    elif model_name == 'celebA_infogan':
         dataset = CelebADataset()
         latent_spec = [
             (Uniform(128), False),
@@ -68,21 +68,49 @@ def train(dataset_name, learning_params):
             batch_size=batch_size,
             image_shape=dataset.image_shape,
         )
+    elif model_name == 'mnist_wasserstein':
+        dataset = MnistDataset()
+        latent_spec = [
+            (Uniform(62), False),
+        ]
+        model = MNISTInfoGAN(
+            output_dist=MeanBernoulli(dataset.image_dim),
+            latent_spec=latent_spec,
+            batch_size=batch_size,
+            image_shape=dataset.image_shape,
+        )
     else:
-        raise ValueError('Invalid dataset_name: {}'.format(dataset_name))
+        raise ValueError('Invalid model_name: {}'.format(model_name))
 
-    algo = InfoGANTrainer(
-        model=model,
-        dataset=dataset,
-        batch_size=batch_size,
-        exp_name=experiment_name,
-        log_dir=log_dir,
-        checkpoint_dir=checkpoint_dir,
-        max_epoch=max_epoch,
-        updates_per_epoch=updates_per_epoch,
-        info_reg_coeff=1.0,
-        generator_learning_rate=1e-3,
-        discriminator_learning_rate=2e-4,
-    )
+    if trainer == 'infogan':
+        algo = InfoGANTrainer(
+            model=model,
+            dataset=dataset,
+            batch_size=batch_size,
+            exp_name=experiment_name,
+            log_dir=log_dir,
+            checkpoint_dir=checkpoint_dir,
+            max_epoch=max_epoch,
+            updates_per_epoch=updates_per_epoch,
+            info_reg_coeff=1.0,
+            generator_learning_rate=1e-3,
+            discriminator_learning_rate=2e-4,
+        )
+    elif trainer == 'wasserstein':
+        algo = WassersteinGANTrainer(
+            model=model,
+            dataset=dataset,
+            batch_size=batch_size,
+            exp_name=experiment_name,
+            log_dir=log_dir,
+            checkpoint_dir=checkpoint_dir,
+            max_epoch=max_epoch,
+            updates_per_epoch=updates_per_epoch,
+            info_reg_coeff=1.0,
+            generator_learning_rate=1e-3,
+            discriminator_learning_rate=2e-4,
+        )
+    else:
+        raise ValueError('Invalid trainer: {}'.format(trainer))
 
     algo.train()
