@@ -1,6 +1,7 @@
 # InfoGAN
 
 This repository was originally copied from https://github.com/openai/InfoGAN. The current version simply adds the CelebA experiment to the original repository which contained MNIST experiment only.
+The next steps are to implement GAN variants like CatGAN, Wasserstein GAN or Unrolled GAN. 
 
 ## Running in Docker
 
