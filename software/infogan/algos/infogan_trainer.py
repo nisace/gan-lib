@@ -9,6 +9,13 @@ import sys
 TINY = 1e-8
 
 
+def apply_optimizer(optimizer, losses, var_list, name='cost'):
+    total_loss = tf.add_n(losses, name=name)
+    grads_and_vars = optimizer.compute_gradients(total_loss, var_list=var_list)
+    train_op = optimizer.apply_gradients(grads_and_vars)
+    return train_op
+
+
 class GANTrainer(object):
     def __init__(self,
                  model,
@@ -64,10 +71,10 @@ class GANTrainer(object):
 
             reg_z = self.model.reg_z(z_var)
 
-            discriminator_loss = self.get_discriminator_loss(real_d, fake_d)
+            discrim_loss = self.get_discriminator_loss(real_d, fake_d)
             generator_loss = self.get_generator_loss(fake_d)
 
-            self.log_vars.append(("discriminator_loss", discriminator_loss))
+            self.log_vars.append(("discriminator_loss", discrim_loss))
             self.log_vars.append(("generator_loss", generator_loss))
 
             mi_est = tf.constant(0.)
@@ -87,7 +94,7 @@ class GANTrainer(object):
                 cross_ent += disc_cross_ent
                 self.log_vars.append(("MI_disc", disc_mi_est))
                 self.log_vars.append(("CrossEnt_disc", disc_cross_ent))
-                discriminator_loss -= self.info_reg_coeff * disc_mi_est
+                discrim_loss -= self.info_reg_coeff * disc_mi_est
                 generator_loss -= self.info_reg_coeff * disc_mi_est
 
             if len(self.model.reg_cont_latent_dist.dists) > 0:
@@ -102,7 +109,7 @@ class GANTrainer(object):
                 cross_ent += cont_cross_ent
                 self.log_vars.append(("MI_cont", cont_mi_est))
                 self.log_vars.append(("CrossEnt_cont", cont_cross_ent))
-                discriminator_loss -= self.info_reg_coeff * cont_mi_est
+                discrim_loss -= self.info_reg_coeff * cont_mi_est
                 generator_loss -= self.info_reg_coeff * cont_mi_est
 
             for idx, dist_info in enumerate(self.model.reg_latent_dist.split_dist_info(fake_reg_z_dist_info)):
@@ -122,12 +129,15 @@ class GANTrainer(object):
             self.log_vars.append(("max_fake_d", tf.reduce_max(fake_d)))
             self.log_vars.append(("min_fake_d", tf.reduce_min(fake_d)))
 
-            discriminator_optimizer = tf.train.AdamOptimizer(self.discriminator_learning_rate, beta1=0.5)
-            self.discriminator_trainer = pt.apply_optimizer(discriminator_optimizer, losses=[discriminator_loss],
-                                                            var_list=d_vars)
+            discrim_optimizer = tf.train.AdamOptimizer(self.discriminator_learning_rate, beta1=0.5)
+            self.discriminator_trainer = apply_optimizer(discrim_optimizer,
+                                                         losses=[discrim_loss],
+                                                         var_list=d_vars)
 
             generator_optimizer = tf.train.AdamOptimizer(self.generator_learning_rate, beta1=0.5)
-            self.generator_trainer = pt.apply_optimizer(generator_optimizer, losses=[generator_loss], var_list=g_vars)
+            self.generator_trainer = apply_optimizer(generator_optimizer,
+                                                     losses=[generator_loss],
+                                                     var_list=g_vars)
 
             for k, v in self.log_vars:
                 tf.summary.scalar(name=k, tensor=v)
