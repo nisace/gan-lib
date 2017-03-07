@@ -1,12 +1,13 @@
-from infogan.misc.distributions import Product, Distribution, Gaussian, Categorical, Bernoulli
 import prettytensor as pt
 import tensorflow as tf
-import infogan.misc.custom_ops
+
 from infogan.misc.custom_ops import leaky_rectify
+from infogan.misc.distributions import Product, Distribution, Gaussian, Categorical, Bernoulli
 
 
 class RegularizedGAN(object):
-    def __init__(self, output_dist, latent_spec, batch_size, image_shape):
+    def __init__(self, output_dist, latent_spec, batch_size, image_shape,
+                 final_activation=tf.nn.sigmoid):
         """
         Args:
             output_dist (Distribution):
@@ -29,6 +30,7 @@ class RegularizedGAN(object):
         self.reg_cont_latent_dist = Product([x for x in self.reg_latent_dist.dists if isinstance(x, Gaussian)])
         self.reg_disc_latent_dist = Product([x for x in self.reg_latent_dist.dists if isinstance(x, (Categorical, Bernoulli))])
 
+        self.final_activation = final_activation
         self.build_network()
 
     def build_network(self):
@@ -36,7 +38,10 @@ class RegularizedGAN(object):
 
     def discriminate(self, x_var):
         d_out = self.discriminator_template.construct(input=x_var)
-        d = tf.nn.sigmoid(d_out[:, 0])
+        if self.final_activation is not None:
+            d = self.final_activation(d_out[:, 0])
+        else:
+            d = d_out[:, 0]
         reg_dist_flat = self.encoder_template.construct(input=x_var)
         reg_dist_info = self.reg_latent_dist.activate_dist(reg_dist_flat)
         return d, self.reg_latent_dist.sample(reg_dist_info), reg_dist_info, reg_dist_flat

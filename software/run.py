@@ -27,7 +27,7 @@ def train(model_name, learning_params):
     make_exists(log_dir)
     make_exists(checkpoint_dir)
 
-    batch_size = 128
+    batch_size = learning_params['batch_size']
     updates_per_epoch = learning_params['updates_per_epoch']
     max_epoch = learning_params['max_epoch']
     trainer = learning_params['trainer']
@@ -46,7 +46,18 @@ def train(model_name, learning_params):
             batch_size=batch_size,
             image_shape=dataset.image_shape,
         )
-
+    elif model_name == 'mnist_wasserstein':
+        dataset = MnistDataset()
+        latent_spec = [
+            (Uniform(62), False),
+        ]
+        model = MNISTInfoGAN(
+            output_dist=MeanBernoulli(dataset.image_dim),
+            latent_spec=latent_spec,
+            batch_size=batch_size,
+            image_shape=dataset.image_shape,
+            final_activation=None,
+        )
     elif model_name == 'celebA_infogan':
         dataset = CelebADataset()
         latent_spec = [
@@ -68,16 +79,17 @@ def train(model_name, learning_params):
             batch_size=batch_size,
             image_shape=dataset.image_shape,
         )
-    elif model_name == 'mnist_wasserstein':
-        dataset = MnistDataset()
+    elif model_name == 'celebA_wasserstein':
+        dataset = CelebADataset()
         latent_spec = [
-            (Uniform(62), False),
+            (Uniform(128), False),
         ]
-        model = MNISTInfoGAN(
-            output_dist=MeanBernoulli(dataset.image_dim),
+        model = CelebAInfoGAN(
+            output_dist=MeanGaussian(dataset.image_dim, fix_std=True),
             latent_spec=latent_spec,
             batch_size=batch_size,
             image_shape=dataset.image_shape,
+            final_activation=None,
         )
     else:
         raise ValueError('Invalid model_name: {}'.format(model_name))
@@ -93,8 +105,8 @@ def train(model_name, learning_params):
             max_epoch=max_epoch,
             updates_per_epoch=updates_per_epoch,
             info_reg_coeff=1.0,
+            discrim_learning_rate=2e-4,
             generator_learning_rate=1e-3,
-            discriminator_learning_rate=2e-4,
         )
     elif trainer == 'wasserstein':
         algo = WassersteinGANTrainer(
@@ -107,8 +119,8 @@ def train(model_name, learning_params):
             max_epoch=max_epoch,
             updates_per_epoch=updates_per_epoch,
             info_reg_coeff=1.0,
-            generator_learning_rate=1e-3,
-            discriminator_learning_rate=2e-4,
+            discrim_learning_rate=5e-5,
+            generator_learning_rate=5e-5,
         )
     else:
         raise ValueError('Invalid trainer: {}'.format(trainer))

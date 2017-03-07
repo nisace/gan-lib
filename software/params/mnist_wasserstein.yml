@@ -4,3 +4,4 @@ learning_params:
   trainer: wasserstein
   updates_per_epoch: 100
   max_epoch: 500
+  batch_size: 128
