@@ -40,8 +40,8 @@ class GANTrainer(object):
                  snapshot_interval=10000,
                  info_reg_coeff=1.0,
                  gen_disc_update_ratio=1,
-                 generator_clip_by_value=None,
-                 discrim_clip_by_value=None,
+                 generator_grad_clip_by_value=None,
+                 discrim_grad_clip_by_value=None,
                  ):
         """
         :type model: RegularizedGAN
@@ -63,8 +63,8 @@ class GANTrainer(object):
         self.input_tensor = None
         self.log_vars = []
         self.gen_disc_update_ratio = gen_disc_update_ratio
-        self.discrim_clip_by_value = discrim_clip_by_value
-        self.generator_clip_by_value = generator_clip_by_value
+        self.discrim_grad_clip_by_value = discrim_grad_clip_by_value
+        self.generator_grad_clip_by_value = generator_grad_clip_by_value
 
     def get_discriminator_loss(self, real_d, fake_d):
         raise NotImplementedError
@@ -145,12 +145,12 @@ class GANTrainer(object):
             self.discriminator_trainer = apply_optimizer(self.discrim_optimizer,
                                                          losses=[discrim_loss],
                                                          var_list=self.d_vars,
-                                                         clip_by_value=self.discrim_clip_by_value)
+                                                         clip_by_value=self.discrim_grad_clip_by_value)
 
             self.generator_trainer = apply_optimizer(self.generator_optimizer,
                                                      losses=[generator_loss],
                                                      var_list=self.g_vars,
-                                                     clip_by_value=self.generator_clip_by_value)
+                                                     clip_by_value=self.generator_grad_clip_by_value)
 
             for k, v in self.log_vars:
                 tf.summary.scalar(name=k, tensor=v)
@@ -193,15 +193,9 @@ class GANTrainer(object):
 
     def get_samples_without_reg_latent_dist(self):
         with tf.Session():
-            # (n, d) with 10 * 10 samples + other samples
-            z_var = np.concatenate([
-                np.tile(
-                    self.model.nonreg_latent_dist.sample_prior(10).eval(),
-                    [10, 1]
-                ),
-                self.model.nonreg_latent_dist.sample_prior(
-                    self.batch_size - 100).eval(),
-            ], axis=0)
+            # (n, d)
+            z_var = self.model.nonreg_latent_dist.sample_prior(
+                self.batch_size).eval()
         self.add_images_to_summary(z_var, 'image')
 
     def get_samples_with_reg_latent_dist(self):
@@ -350,7 +344,8 @@ class WassersteinGANTrainer(GANTrainer):
                  generator_learning_rate=5e-5,
                  **kwargs):
         self.n_critic = 5
-        # kwargs.setdefault('discrim_clip_by_value', [-0.01, 0.01])
+        self.discrim_weight_clip_by_value = [-0.01, 0.01]
+        self.clip = None
         d_optim = tf.train.RMSPropOptimizer(discrim_learning_rate)
         kwargs.setdefault('discrim_optimizer', d_optim)
         g_optim = tf.train.RMSPropOptimizer(generator_learning_rate)
@@ -369,9 +364,11 @@ class WassersteinGANTrainer(GANTrainer):
             feed_dict = {self.input_tensor: x}
             log_vals = sess.run([self.discriminator_trainer] + log_vars,
                                 feed_dict)[1:]
-            clip = [tf.assign(d, tf.clip_by_value(d, -0.01, 0.01)) for d in
-                    self.d_vars]
-            sess.run(clip)
+            if self.clip is None:
+                self.clip = [tf.assign(
+                    d, tf.clip_by_value(d, *self.discrim_weight_clip_by_value))
+                             for d in self.d_vars]
+            sess.run(self.clip)
             all_log_vals.append(log_vals)
         x, _ = self.dataset.train.next_batch(self.batch_size)
         feed_dict = {self.input_tensor: x}
