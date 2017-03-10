@@ -1,7 +1,7 @@
-model_name: celebA_infogan
+model_name: mnist_wasserstein
 
 learning_params:
-  trainer: infogan
+  trainer: wasserstein
   updates_per_epoch: 100
   max_epoch: 500
   batch_size: 128
