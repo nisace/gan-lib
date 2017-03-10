@@ -1,5 +1,7 @@
-dataset_name: mnist
+model_name: mnist_infogan
 
 learning_params:
+  trainer: infogan
   updates_per_epoch: 100
   max_epoch: 60
+  batch_size: 128
