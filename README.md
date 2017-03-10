@@ -28,24 +28,22 @@ tensorboard --logdir logs/
 
 ## Examples
 
-MNIST:
+### MNIST:
 
 ![result](software/samples/mnist.png)
 
-CelebA:
+### CelebA:
 
 ![result](software/samples/celebA.png)
 
-MNIST Wassertein:
-
-Generator Loss
-![result](software/samples/mnist_wasserstein_generator_loss.png)
+### MNIST Wassertein:
 
 ![result](software/samples/mnist_wasserstein.png)
 
-CelebA Wassertein:
+![result](software/samples/mnist_wasserstein_generator_loss.png)
 
-Generator Loss
-![result](software/samples/celebA_wasserstein_generator_loss.png)
+### CelebA Wassertein:
 
 ![result](software/samples/celebA_wasserstein.png)
+
+![result](software/samples/celebA_wasserstein_generator_loss.png)
