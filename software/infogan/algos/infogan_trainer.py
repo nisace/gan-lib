@@ -159,9 +159,7 @@ class GANTrainer(object):
             with tf.variable_scope("model", reuse=True) as scope:
                 self.get_samples()
 
-        # tf.add_to_collection("z_var",
-        #                      self.model.nonreg_latent_dist.sample_prior(
-        #                          self.batch_size))
+        tf.add_to_collection("z_var", z_var)
         tf.add_to_collection("generated", fake_x)
 
     def add_images_to_summary(self, z_var, images_name):
