@@ -37,7 +37,7 @@ class GANTrainer(object):
                  checkpoint_dir="ckt",
                  max_epoch=100,
                  updates_per_epoch=100,
-                 snapshot_interval=10000,
+                 snapshot_interval=500,
                  info_reg_coeff=1.0,
                  gen_disc_update_ratio=1,
                  generator_grad_clip_by_value=None,
@@ -159,6 +159,11 @@ class GANTrainer(object):
             with tf.variable_scope("model", reuse=True) as scope:
                 self.get_samples()
 
+        # tf.add_to_collection("z_var",
+        #                      self.model.nonreg_latent_dist.sample_prior(
+        #                          self.batch_size))
+        tf.add_to_collection("generated", fake_x)
+
     def add_images_to_summary(self, z_var, images_name):
             _, x_dist_info = self.model.generate(z_var)
 
@@ -185,6 +190,7 @@ class GANTrainer(object):
             imgs = tf.concat(0, stacked_img)
             imgs = tf.expand_dims(imgs, 0)
             tf.summary.image(name=images_name, tensor=imgs)
+            # tf.add_to_collection("images", imgs)
 
     def get_samples(self):
         if len(self.model.reg_latent_dist.dists) > 0:
