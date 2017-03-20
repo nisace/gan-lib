@@ -188,7 +188,6 @@ class GANTrainer(object):
             imgs = tf.concat(0, stacked_img)
             imgs = tf.expand_dims(imgs, 0)
             tf.summary.image(name=images_name, tensor=imgs)
-            # tf.add_to_collection("images", imgs)
 
     def get_samples(self):
         if len(self.model.reg_latent_dist.dists) > 0:
