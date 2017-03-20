@@ -3,21 +3,18 @@ from __future__ import print_function
 
 import os
 
-import datetime
-import dateutil.tz
-
 from infogan.algos.infogan_trainer import InfoGANTrainer, WassersteinGANTrainer
 from infogan.misc.datasets import MnistDataset, CelebADataset
 from infogan.misc.distributions import Uniform, Categorical, MeanBernoulli, \
     MeanGaussian
 from infogan.models.regularized_gan import MNISTInfoGAN, \
     CelebAInfoGAN
+from utils.date_time_utils import get_timestamp
 from utils.file_system_utils import make_exists
 
 
 def train(model_name, learning_params):
-    now = datetime.datetime.now(dateutil.tz.tzlocal())
-    timestamp = now.strftime('%Y_%m_%d_%H_%M_%S')
+    timestamp = get_timestamp()
 
     root_log_dir = os.path.join('logs', model_name)
     root_checkpoint_dir = os.path.join('ckt', model_name)

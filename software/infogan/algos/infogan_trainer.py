@@ -37,7 +37,7 @@ class GANTrainer(object):
                  checkpoint_dir="ckt",
                  max_epoch=100,
                  updates_per_epoch=100,
-                 snapshot_interval=10000,
+                 snapshot_interval=500,
                  info_reg_coeff=1.0,
                  gen_disc_update_ratio=1,
                  generator_grad_clip_by_value=None,
@@ -158,6 +158,9 @@ class GANTrainer(object):
         with pt.defaults_scope(phase=pt.Phase.test):
             with tf.variable_scope("model", reuse=True) as scope:
                 self.get_samples()
+
+        tf.add_to_collection("z_var", z_var)
+        tf.add_to_collection("generated", fake_x)
 
     def add_images_to_summary(self, z_var, images_name):
             _, x_dist_info = self.model.generate(z_var)
