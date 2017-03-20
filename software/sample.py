@@ -1,5 +1,6 @@
 import os
 
+import numpy as np
 import tensorflow as tf
 
 from utils.date_time_utils import get_timestamp
@@ -22,9 +23,19 @@ def sample(checkpoint_path, z_value=None):
 
         feed_dict = {}
         if z_value is not None:
+            if len(z_value.shape) != 2:
+                raise ValueError("z_value must be a 2d array")
             print("Getting input noise tensor")
             z_tensor = tf.get_collection("z_var")[0]
-            feed_dict[z_tensor.name] = z_value
+            z_tensor_shape = z_tensor.get_shape().as_list()
+            if z_value.shape[1] != z_tensor_shape[1]:
+                msg = 'z_value.shape[1] [{}] must be equal to ' \
+                      'z_tensor.shape[1] [{}]'
+                msg = msg.format(z_value.shape[1], z_tensor_shape[1])
+                raise ValueError(msg)
+            z = np.ones(z_tensor_shape)
+            z[:z_value.shape[0], :] = z_value
+            feed_dict[z_tensor.name] = z
 
         print("Sampling")
         images = sess.run(images_tensor, feed_dict=feed_dict)
@@ -40,3 +51,4 @@ def sample(checkpoint_path, z_value=None):
         summary_op = tf.summary.merge([sum])
         summary_str = sess.run(summary_op)
         summary_writer.add_summary(summary_str, 0)
+        print("Samples saved in {}".format(samples_folder))
