@@ -253,9 +253,14 @@ class GANTrainer(object):
                 offset += dist.dim
             else:
                 raise NotImplementedError
+            # (n, d)
+            # The 10 first rows have different z and c and are tiled 10 times
+            # except for the varying c that is the same by blocks of 10 rows
+            # and linearly varies between blocks
             z_var = tf.constant(np.concatenate([fixed_noncat, cur_cat], axis=1))
-            # Images where each row is a different sample from dist
-            # and each column a different non reg latent sample.
+            # Images where each column had a different fixed z and c
+            # The varying c varies along each column
+            # (a different value for each row)
             name = 'image_{}_{}'.format(dist_idx, dist.__class__.__name__)
             self.add_images_to_summary(z_var, name)
 
