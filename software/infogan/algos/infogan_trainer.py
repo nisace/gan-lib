@@ -3,6 +3,8 @@ import prettytensor as pt
 import tensorflow as tf
 import numpy as np
 from progressbar import ETA, Bar, Percentage, ProgressBar
+import cPickle as pkl
+import os
 from infogan.misc.distributions import Bernoulli, Gaussian, Categorical
 import sys
 
@@ -269,8 +271,10 @@ class GANTrainer(object):
         raise NotImplementedError
 
     def train(self):
-        self.init_opt()
+        with open(os.path.join(self.log_dir, 'model.pkl'), 'wb') as f:
+            pkl.dump(self.model, f)
 
+        self.init_opt()
         init = tf.global_variables_initializer()
 
         with tf.Session() as sess:

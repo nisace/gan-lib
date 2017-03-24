@@ -4,6 +4,7 @@ import numpy as np
 
 from infogan.misc.custom_ops import leaky_rectify
 from infogan.misc.distributions import Product, Distribution, Gaussian, Categorical, Bernoulli
+from utils.python_utils import make_list
 
 
 class RegularizedGAN(object):
@@ -176,6 +177,14 @@ class RegularizedGAN(object):
             tf.summary.image(name=images_name, tensor=imgs)
 
     def get_samples(self):
+        z_vars_and_names = make_list(self.get_z_var())
+        for z_var, name in z_vars_and_names:
+            self.add_images_to_summary(z_var, name)
+        # if len(self.reg_latent_dist.dists) > 0:
+        #     return self.get_samples_with_reg_latent_dist()
+        # return self.get_samples_without_reg_latent_dist()
+
+    def get_z_var(self):
         if len(self.reg_latent_dist.dists) > 0:
             return self.get_samples_with_reg_latent_dist()
         return self.get_samples_without_reg_latent_dist()
@@ -185,7 +194,8 @@ class RegularizedGAN(object):
             # (n, d)
             z_var = self.nonreg_latent_dist.sample_prior(
                 self.batch_size).eval()
-        self.add_images_to_summary(z_var, 'image')
+        return z_var, 'image'
+        # self.add_images_to_summary(z_var, 'image')
 
     def get_samples_with_reg_latent_dist(self):
         with tf.Session():
@@ -206,6 +216,7 @@ class RegularizedGAN(object):
             ], axis=0)
 
         offset = 0
+        z_vars_and_names = []
         for dist_idx, dist in enumerate(self.reg_latent_dist.dists):
             if isinstance(dist, Gaussian):
                 assert dist.dim == 1, "Only dim=1 is currently supported"
@@ -248,7 +259,9 @@ class RegularizedGAN(object):
             # The varying c varies along each column
             # (a different value for each row)
             name = 'image_{}_{}'.format(dist_idx, dist.__class__.__name__)
-            self.add_images_to_summary(z_var, name)
+            z_vars_and_names.append((z_var, name))
+            # self.add_images_to_summary(z_var, name)
+        return z_vars_and_names
 
 
 class MNISTInfoGAN(RegularizedGAN):
