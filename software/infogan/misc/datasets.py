@@ -101,6 +101,9 @@ class MnistDataset(object):
         self.image_dim = 28 * 28
         self.image_shape = (28, 28, 1)
 
+    def __getstate__(self):
+        return {}
+
     def transform(self, data):
         return data
 

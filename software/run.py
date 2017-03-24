@@ -42,7 +42,12 @@ def train(model_name, learning_params):
             latent_spec=latent_spec,
             batch_size=batch_size,
             image_shape=dataset.image_shape,
+            # dataset=dataset
         )
+        import cPickle as pkl
+        with open('model.pkl', 'wb') as f:
+            pkl.dump(model, f)
+        # return
     elif model_name == 'mnist_wasserstein':
         dataset = MnistDataset()
         latent_spec = [
