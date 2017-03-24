@@ -24,9 +24,17 @@ def train(params_file):
 @click.option('--checkpoint-path', '-p',
               prompt='Please specify the checkpoint file to load',
               help='The path of the checkpoint file to load (.ckpt).')
-def sample(checkpoint_path):
+@click.option('--visualize-latent-code', '-c',
+              prompt='Please specify if you visualize the latent codes '
+                     'influence',
+              help='If True, sample with varying latent codes to see their '
+                   'influence.')
+def sample(checkpoint_path, visualize_latent_code):
     import sample
-    sample.sample(checkpoint_path)
+    z_value = None
+    if visualize_latent_code:
+        z_value = model.get_z_value()
+    sample.sample(checkpoint_path, z_value)
 
 
 all_scripts.add_command(train)

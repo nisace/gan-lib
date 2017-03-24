@@ -42,7 +42,7 @@ def train(model_name, learning_params):
             latent_spec=latent_spec,
             batch_size=batch_size,
             image_shape=dataset.image_shape,
-            # dataset=dataset
+            dataset=dataset
         )
         import cPickle as pkl
         with open('model.pkl', 'wb') as f:

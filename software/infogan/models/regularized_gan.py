@@ -8,7 +8,7 @@ from infogan.misc.distributions import Product, Distribution, Gaussian, Categori
 
 class RegularizedGAN(object):
     def __init__(self, output_dist, latent_spec, batch_size, image_shape,
-                 dataset=None, final_activation=tf.nn.sigmoid):
+                 dataset, final_activation=tf.nn.sigmoid):
         """
         Args:
             output_dist (Distribution):
@@ -25,7 +25,7 @@ class RegularizedGAN(object):
         self.reg_latent_dist = Product([x for x, reg in latent_spec if reg])
         self.nonreg_latent_dist = Product([x for x, reg in latent_spec if not reg])
         self.batch_size = batch_size
-        self.image_shape = image_shape
+        self.image_shape = dataset.image_shape
         self.image_size = self.image_shape[0]
         assert all(isinstance(x, (Gaussian, Categorical, Bernoulli)) for x in self.reg_latent_dist.dists)
 
@@ -158,7 +158,7 @@ class RegularizedGAN(object):
                 img_var = x_dist_info["mean"]
             else:
                 raise NotImplementedError
-            # img_var = self.dataset.inverse_transform(img_var)
+            img_var = self.dataset.inverse_transform(img_var)
             rows = 10  # Number of rows and columns of images to generate
             # (n, h, w, c)
             img_var = tf.reshape(img_var, [self.batch_size] + list(self.image_shape))

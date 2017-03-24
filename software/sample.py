@@ -6,11 +6,14 @@ import tensorflow as tf
 from utils.date_time_utils import get_timestamp
 
 
-def sample(checkpoint_path, z_value=None):
+def sample(checkpoint_path, z_value=None, n_rows=1, n_columns=1):
     """
     Args:
         checkpoint_path (str): The checkpoint file path (.ckpt file)
-        z_value (ndarray, default None): The value the noise variable z.
+        z_value (ndarray, default None): The value of the noise variable z.
+         If None, the value is sampled from the variable prior.
+        n_rows (int): The number of samples rows.
+        n_columns (int): The number of samples columns.
     """
     if checkpoint_path[-5:] == '.meta':
         checkpoint_path = checkpoint_path[:-5]
@@ -21,7 +24,7 @@ def sample(checkpoint_path, z_value=None):
         print("Getting samples tensor")
         images_tensor = tf.get_collection("generated")[0]
 
-        feed_dict = {}
+        feed_dict = None
         if z_value is not None:
             if len(z_value.shape) != 2:
                 raise ValueError("z_value must be a 2d array")
@@ -38,6 +41,7 @@ def sample(checkpoint_path, z_value=None):
             feed_dict[z_tensor.name] = z
 
         print("Sampling")
+        # (batch_size, h * w * c)
         images = sess.run(images_tensor, feed_dict=feed_dict)
         images = images[0, :].reshape(1, 28, 28, 1)
 
