@@ -103,6 +103,13 @@ class Distribution(object):
         """
         raise NotImplementedError
 
+    def varying_values(self):
+        """
+        Returns: Varying values of the distribution
+
+        """
+        raise NotImplementedError
+
 
 class Categorical(Distribution):
     def __init__(self, dim):
@@ -245,6 +252,9 @@ class Gaussian(Distribution):
         else:
             stddev = tf.sqrt(tf.exp(flat_dist[:, self.dim:]))
         return dict(mean=mean, stddev=stddev)
+
+    def varying_values(self, min=-1, max=1, n=10):
+        return np.linspace(min, max, num=n)
 
 
 class MeanGaussian(Gaussian):

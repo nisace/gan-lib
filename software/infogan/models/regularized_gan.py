@@ -179,10 +179,13 @@ class RegularizedGAN(object):
                          collections=collections)
 
     def get_test_samples(self, sess, z_tensor, images_tensor, sampling_type,
-                         collections=None):
+                         collections=None, min_continuous=-2.,
+                         max_continuous=2.):
         if collections is None:
             collections = ['samples']
-        z_vars_and_names = make_list(self.get_z_var(sampling_type))
+        z_vars_and_names = make_list(self.get_z_var(sampling_type,
+                                                    min_continuous,
+                                                    max_continuous))
         for z_var, name in z_vars_and_names:
             feed_dict = {z_tensor.name: z_var}
             x_dist_flat = sess.run(images_tensor, feed_dict=feed_dict)
@@ -199,7 +202,7 @@ class RegularizedGAN(object):
             _, _, x_dist_flat = self.generate(z_var)
             self.add_images_to_summary(x_dist_flat, name, collections)
 
-    def get_z_var(self, sampling_type):
+    def get_z_var(self, sampling_type, min_continuous=-1., max_continuous=1.):
         """
         Args:
             sampling_type (str): The type of z_var to get
@@ -207,7 +210,9 @@ class RegularizedGAN(object):
         if sampling_type == 'random':
             return self.get_random_z_var()
         elif sampling_type == 'latent_code_influence':
-            return self.get_latent_code_influence_z_var()
+            return self.get_latent_code_influence_z_var(
+                min_continuous=min_continuous,
+                max_continuous=max_continuous)
         else:
             raise NotImplementedError
 
@@ -217,46 +222,58 @@ class RegularizedGAN(object):
             z_var = self.latent_dist.sample_prior(self.batch_size).eval()
         return z_var, 'samples'
 
-    def get_latent_code_influence_z_var(self):
+    def get_latent_code_influence_z_var(self, n_samples=10, n_variations=10,
+                                        min_continuous=-1.,
+                                        max_continuous=1.):
+        """
+        Args:
+            n_samples (int): The number of different samples (n_columns).
+            n_variations (int): The number of variations for each latent code
+             (n_rows).
+            min_continuous (float): The minimum value for a continuous latent
+             code
+            max_continuous (float): The maximum value for a continuous latent
+             code
+        """
         if len(self.reg_latent_dist.dists) == 0:
             raise ValueError('The model must have at least one regularization '
                              'latent distribution.')
         with tf.Session():
             # (n, d) with 10 * 10 samples + other samples
-            fixed_noncat = np.concatenate([
-                np.tile(
-                    self.nonreg_latent_dist.sample_prior(10).eval(),
-                    [10, 1]
-                ),
-                self.nonreg_latent_dist.sample_prior(self.batch_size - 100).eval(),
-            ], axis=0)
-            fixed_cat = np.concatenate([
-                np.tile(
-                    self.reg_latent_dist.sample_prior(10).eval(),
-                    [10, 1]
-                ),
-                self.reg_latent_dist.sample_prior(self.batch_size - 100).eval(),
-            ], axis=0)
+            n = n_samples * n_variations
+            fixed_noncat = self.nonreg_latent_dist.sample_prior(n_samples)
+            fixed_noncat = np.tile(fixed_noncat.eval(), [n_variations, 1])
+            other = self.nonreg_latent_dist.sample_prior(self.batch_size - n)
+            other = other.eval()
+            fixed_noncat = np.concatenate([fixed_noncat, other], axis=0)
+
+            fixed_cat = self.reg_latent_dist.sample_prior(n_samples).eval()
+            fixed_cat = np.tile(fixed_cat, [n_variations, 1])
+            other = self.reg_latent_dist.sample_prior(self.batch_size - n)
+            other = other.eval()
+            fixed_cat = np.concatenate([fixed_cat, other], axis=0)
 
         offset = 0
         z_vars_and_names = []
         for dist_idx, dist in enumerate(self.reg_latent_dist.dists):
             if isinstance(dist, Gaussian):
                 assert dist.dim == 1, "Only dim=1 is currently supported"
-                c_vals = []
-                for idx in xrange(10):
-                    c_vals.extend([-1.0 + idx * 2.0 / 9] * 10)
-                c_vals.extend([0.] * (self.batch_size - 100))
-                vary_cat = np.asarray(c_vals, dtype=np.float32).reshape((-1, 1))
+                vary_cat = dist.varying_values(min_continuous, max_continuous,
+                                               n_variations)
+                vary_cat = np.repeat(vary_cat, n_samples)
+                other = np.zeros(self.batch_size - n)
+                vary_cat = np.concatenate((vary_cat, other)).reshape((-1, 1))
+                vary_cat = np.asarray(vary_cat, dtype=np.float32)
+
                 cur_cat = np.copy(fixed_cat)
                 cur_cat[:, offset:offset+1] = vary_cat
                 offset += 1
             elif isinstance(dist, Categorical):
                 lookup = np.eye(dist.dim, dtype=np.float32)
                 cat_ids = []
-                for idx in xrange(10):
-                    cat_ids.extend([idx] * 10)
-                cat_ids.extend([0] * (self.batch_size - 100))
+                for idx in xrange(n_variations):
+                    cat_ids.extend([idx] * n_samples)
+                cat_ids.extend([0] * (self.batch_size - n))
                 cur_cat = np.copy(fixed_cat)
                 cur_cat[:, offset:offset+dist.dim] = lookup[cat_ids]
                 offset += dist.dim
@@ -264,9 +281,9 @@ class RegularizedGAN(object):
                 assert dist.dim == 1, "Only dim=1 is currently supported"
                 lookup = np.eye(dist.dim, dtype=np.float32)
                 cat_ids = []
-                for idx in xrange(10):
-                    cat_ids.extend([int(idx / 5)] * 10)
-                cat_ids.extend([0] * (self.batch_size - 100))
+                for idx in xrange(n_variations):
+                    cat_ids.extend([int(idx / 5)] * n_samples)
+                cat_ids.extend([0] * (self.batch_size - n))
                 cur_cat = np.copy(fixed_cat)
                 cur_cat[:, offset:offset+dist.dim] = np.expand_dims(np.array(cat_ids), axis=-1)
                 # import ipdb; ipdb.set_trace()
