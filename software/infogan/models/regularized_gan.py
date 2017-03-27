@@ -151,8 +151,6 @@ class RegularizedGAN(object):
 
     def add_images_to_summary(self, x_dist_flat, images_name,
                               collections=None, n_rows=10, n_columns=10):
-    # def add_images_to_summary(self, z_var, images_name):
-    #         _, x_dist_info = self.generate(z_var)
         x_dist_info = self.output_dist.activate_dist(x_dist_flat)
 
         # just take the mean image
@@ -180,9 +178,10 @@ class RegularizedGAN(object):
         tf.summary.image(name=images_name, tensor=imgs,
                          collections=collections)
 
-    def get_samples_test(self, sess, z_tensor, images_tensor, sampling_type,
-                         collections=['samples']):
-        # with tf.Session() as sess:
+    def get_test_samples(self, sess, z_tensor, images_tensor, sampling_type,
+                         collections=None):
+        if collections is None:
+            collections = ['samples']
         z_vars_and_names = make_list(self.get_z_var(sampling_type))
         for z_var, name in z_vars_and_names:
             feed_dict = {z_tensor.name: z_var}
@@ -190,15 +189,15 @@ class RegularizedGAN(object):
             self.add_images_to_summary(x_dist_flat, name,
                                        collections=collections)
 
-    def get_samples(self, collections=None):
-        z_vars_and_names = make_list(self.get_z_var())
+    def get_train_samples(self, collections=None):
+        if len(self.reg_latent_dist.dists) > 0:
+            sampling_type = 'latent_code_influence'
+        else:
+            sampling_type = 'random'
+        z_vars_and_names = make_list(self.get_z_var(sampling_type))
         for z_var, name in z_vars_and_names:
             _, _, x_dist_flat = self.generate(z_var)
             self.add_images_to_summary(x_dist_flat, name, collections)
-            # self.add_images_to_summary(z_var, name)
-        # if len(self.reg_latent_dist.dists) > 0:
-        #     return self.get_samples_with_reg_latent_dist()
-        # return self.get_samples_without_reg_latent_dist()
 
     def get_z_var(self, sampling_type):
         """
@@ -208,12 +207,9 @@ class RegularizedGAN(object):
         if sampling_type == 'random':
             return self.get_random_z_var()
         elif sampling_type == 'latent_code_influence':
-            return self.get_samples_with_reg_latent_dist()
+            return self.get_latent_code_influence_z_var()
         else:
             raise NotImplementedError
-        # if len(self.reg_latent_dist.dists) > 0:
-        #     return self.get_samples_with_reg_latent_dist()
-        # return self.get_samples_without_reg_latent_dist()
 
     def get_random_z_var(self):
         with tf.Session():
@@ -221,7 +217,7 @@ class RegularizedGAN(object):
             z_var = self.latent_dist.sample_prior(self.batch_size).eval()
         return z_var, 'samples'
 
-    def get_samples_with_reg_latent_dist(self):
+    def get_latent_code_influence_z_var(self):
         if len(self.reg_latent_dist.dists) == 0:
             raise ValueError('The model must have at least one regularization '
                              'latent distribution.')
@@ -281,16 +277,13 @@ class RegularizedGAN(object):
             # The 10 first rows have different z and c and are tiled 10 times
             # except for the varying c that is the same by blocks of 10 rows
             # and linearly varies between blocks
-
             z_var = np.concatenate([fixed_noncat, cur_cat], axis=1)
-            # z_var = tf.constant(np.concatenate([fixed_noncat, cur_cat], axis=1))
 
             # Images where each column had a different fixed z and c
             # The varying c varies along each column
             # (a different value for each row)
             name = 'image_{}_{}'.format(dist_idx, dist.__class__.__name__)
             z_vars_and_names.append((z_var, name))
-            # self.add_images_to_summary(z_var, name)
         return z_vars_and_names
 
 
