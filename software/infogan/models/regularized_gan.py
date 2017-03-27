@@ -150,7 +150,7 @@ class RegularizedGAN(object):
         return self.latent_dist.join_dist_infos(ret)
 
     def add_images_to_summary(self, x_dist_flat, images_name,
-                              collections=None):
+                              collections=None, n_rows=10, n_columns=10):
     # def add_images_to_summary(self, z_var, images_name):
     #         _, x_dist_info = self.generate(z_var)
         x_dist_info = self.output_dist.activate_dist(x_dist_flat)
@@ -163,16 +163,16 @@ class RegularizedGAN(object):
         else:
             raise NotImplementedError
         img_var = self.dataset.inverse_transform(img_var)
-        rows = 10  # Number of rows and columns of images to generate
         # (n, h, w, c)
         img_var = tf.reshape(img_var, [self.batch_size] + list(self.image_shape))
-        img_var = img_var[:rows * rows, :, :, :]
+        img_var = img_var[:n_rows * n_columns, :, :, :]
         # (rows, rows, h, w, c)
-        imgs = tf.reshape(img_var, [rows, rows] + list(self.image_shape))
+        shape = [n_rows, n_columns] + list(self.image_shape)
+        imgs = tf.reshape(img_var, shape)
         stacked_img = []
-        for row in xrange(rows):
+        for row in xrange(n_rows):
             row_img = []
-            for col in xrange(rows):
+            for col in xrange(n_columns):
                 row_img.append(imgs[row, col, :, :, :])
             stacked_img.append(tf.concat(1, row_img))
         imgs = tf.concat(0, stacked_img)
@@ -180,13 +180,15 @@ class RegularizedGAN(object):
         tf.summary.image(name=images_name, tensor=imgs,
                          collections=collections)
 
-    def get_samples_test(self, sess, z_tensor, images_tensor):
+    def get_samples_test(self, sess, z_tensor, images_tensor, sampling_type,
+                         collections=['samples']):
         # with tf.Session() as sess:
-        z_vars_and_names = make_list(self.get_z_var())
+        z_vars_and_names = make_list(self.get_z_var(sampling_type))
         for z_var, name in z_vars_and_names:
             feed_dict = {z_tensor.name: z_var}
             x_dist_flat = sess.run(images_tensor, feed_dict=feed_dict)
-            self.add_images_to_summary(x_dist_flat, name, ['samplings'])
+            self.add_images_to_summary(x_dist_flat, name,
+                                       collections=collections)
 
     def get_samples(self, collections=None):
         z_vars_and_names = make_list(self.get_z_var())
@@ -198,19 +200,31 @@ class RegularizedGAN(object):
         #     return self.get_samples_with_reg_latent_dist()
         # return self.get_samples_without_reg_latent_dist()
 
-    def get_z_var(self):
-        if len(self.reg_latent_dist.dists) > 0:
+    def get_z_var(self, sampling_type):
+        """
+        Args:
+            sampling_type (str): The type of z_var to get
+        """
+        if sampling_type == 'random':
+            return self.get_random_z_var()
+        elif sampling_type == 'latent_code_influence':
             return self.get_samples_with_reg_latent_dist()
-        return self.get_samples_without_reg_latent_dist()
+        else:
+            raise NotImplementedError
+        # if len(self.reg_latent_dist.dists) > 0:
+        #     return self.get_samples_with_reg_latent_dist()
+        # return self.get_samples_without_reg_latent_dist()
 
-    def get_samples_without_reg_latent_dist(self):
+    def get_random_z_var(self):
         with tf.Session():
             # (n, d)
             z_var = self.latent_dist.sample_prior(self.batch_size).eval()
-        return z_var, 'image'
-        # self.add_images_to_summary(z_var, 'image')
+        return z_var, 'samples'
 
     def get_samples_with_reg_latent_dist(self):
+        if len(self.reg_latent_dist.dists) == 0:
+            raise ValueError('The model must have at least one regularization '
+                             'latent distribution.')
         with tf.Session():
             # (n, d) with 10 * 10 samples + other samples
             fixed_noncat = np.concatenate([

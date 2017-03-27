@@ -23,6 +23,7 @@ def train(params_file):
     run.train(**params)
 
 
+#TODO: get sampling_type choices dynamically from Model object
 @all_scripts.command()
 @click.option('--checkpoint-path', '-p',
               prompt='Please specify the checkpoint file to load',
@@ -33,7 +34,12 @@ def train(params_file):
               #        'codes influence',
               help='If True, sample with varying latent codes to see their '
                    'influence.')
-def sample(checkpoint_path, visualize_latent_code):
+@click.option('--sampling-type', '-s',
+              type=click.Choice(['random', 'latent_code_influence']),
+              prompt='Please specify the sampling type.',
+              default='random',
+              help='The type of sampling to perform.')
+def sample(checkpoint_path, visualize_latent_code, sampling_type):
     import sample
     model_path = os.path.relpath(checkpoint_path, 'ckt')
     model_path = os.path.dirname(os.path.join('logs', model_path))
@@ -41,9 +47,10 @@ def sample(checkpoint_path, visualize_latent_code):
     with open(model_path, 'rb') as f:
         model = pkl.load(f)
     z_value = None
-    if visualize_latent_code:
-        z_value = model.get_z_value()
-    sample.sample(checkpoint_path, model.image_shape, model, z_value=z_value)
+    # if visualize_latent_code:
+    #     z_value = model.get_z_value()
+    sample.sample(checkpoint_path, model.image_shape, model, sampling_type,
+                  z_value=z_value)
 
 
 all_scripts.add_command(train)

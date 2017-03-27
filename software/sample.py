@@ -6,7 +6,7 @@ import tensorflow as tf
 from utils.date_time_utils import get_timestamp
 
 
-def sample(checkpoint_path, image_shape, model, z_value=None, n_rows=1, n_columns=1):
+def sample(checkpoint_path, image_shape, model, sampling_type, z_value=None, n_rows=1, n_columns=1):
     """
     Args:
         checkpoint_path (str): The checkpoint file path (.ckpt file)
@@ -23,11 +23,11 @@ def sample(checkpoint_path, image_shape, model, z_value=None, n_rows=1, n_column
         saver = tf.train.import_meta_graph(checkpoint_path + '.meta')
         saver.restore(sess, checkpoint_path)
         print("Getting samples tensor")
-        images_tensor = tf.get_collection("generated")[0]
         images_tensor = tf.get_collection("x_dist_flat")[0]
         z_tensor = tf.get_collection("z_var")[0]
-
-        model.get_samples_test(sess, z_tensor, images_tensor)
+        collection = 'samples'
+        model.get_samples_test(sess, z_tensor, images_tensor, sampling_type,
+                               collections=[collection])
 
 
         # feed_dict = None
@@ -70,7 +70,7 @@ def sample(checkpoint_path, image_shape, model, z_value=None, n_rows=1, n_column
         # sum = model.add_images_to_summary(images, 'samples')
         # sum = tf.summary.image(name='samples', tensor=images)
 
-        summary_op = tf.summary.merge_all(key='samplings')
+        summary_op = tf.summary.merge_all(key=collection)
         # summary_op = tf.summary.merge([sum])
 
         summary_str = sess.run(summary_op)
