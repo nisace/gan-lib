@@ -149,9 +149,11 @@ class RegularizedGAN(object):
                 nonreg_idx += 1
         return self.latent_dist.join_dist_infos(ret)
 
-    def add_images_to_summary(self, x_dist_info, images_name):
+    def add_images_to_summary(self, x_dist_flat, images_name,
+                              collections=None):
     # def add_images_to_summary(self, z_var, images_name):
     #         _, x_dist_info = self.generate(z_var)
+        x_dist_info = self.output_dist.activate_dist(x_dist_flat)
 
         # just take the mean image
         if isinstance(self.output_dist, Bernoulli):
@@ -175,13 +177,22 @@ class RegularizedGAN(object):
             stacked_img.append(tf.concat(1, row_img))
         imgs = tf.concat(0, stacked_img)
         imgs = tf.expand_dims(imgs, 0)
-        return tf.summary.image(name=images_name, tensor=imgs)
+        tf.summary.image(name=images_name, tensor=imgs,
+                         collections=collections)
 
-    def get_samples(self):
+    def get_samples_test(self, sess, z_tensor, images_tensor):
+        # with tf.Session() as sess:
         z_vars_and_names = make_list(self.get_z_var())
         for z_var, name in z_vars_and_names:
-            _, x_dist_info, _ = self.generate(z_var)
-            self.add_images_to_summary(x_dist_info, name)
+            feed_dict = {z_tensor.name: z_var}
+            x_dist_flat = sess.run(images_tensor, feed_dict=feed_dict)
+            self.add_images_to_summary(x_dist_flat, name, ['samplings'])
+
+    def get_samples(self, collections=None):
+        z_vars_and_names = make_list(self.get_z_var())
+        for z_var, name in z_vars_and_names:
+            _, _, x_dist_flat = self.generate(z_var)
+            self.add_images_to_summary(x_dist_flat, name, collections)
             # self.add_images_to_summary(z_var, name)
         # if len(self.reg_latent_dist.dists) > 0:
         #     return self.get_samples_with_reg_latent_dist()
@@ -195,8 +206,7 @@ class RegularizedGAN(object):
     def get_samples_without_reg_latent_dist(self):
         with tf.Session():
             # (n, d)
-            z_var = self.nonreg_latent_dist.sample_prior(
-                self.batch_size).eval()
+            z_var = self.latent_dist.sample_prior(self.batch_size).eval()
         return z_var, 'image'
         # self.add_images_to_summary(z_var, 'image')
 
@@ -257,7 +267,10 @@ class RegularizedGAN(object):
             # The 10 first rows have different z and c and are tiled 10 times
             # except for the varying c that is the same by blocks of 10 rows
             # and linearly varies between blocks
-            z_var = tf.constant(np.concatenate([fixed_noncat, cur_cat], axis=1))
+
+            z_var = np.concatenate([fixed_noncat, cur_cat], axis=1)
+            # z_var = tf.constant(np.concatenate([fixed_noncat, cur_cat], axis=1))
+
             # Images where each column had a different fixed z and c
             # The varying c varies along each column
             # (a different value for each row)
