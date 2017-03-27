@@ -60,7 +60,7 @@ class RegularizedGAN(object):
     def generate(self, z_var):
         x_dist_flat = self.generator_template.construct(input=z_var)
         x_dist_info = self.output_dist.activate_dist(x_dist_flat)
-        return self.output_dist.sample(x_dist_info), x_dist_info
+        return self.output_dist.sample(x_dist_info), x_dist_info, x_dist_flat
 
     def disc_reg_z(self, reg_z_var):
         ret = []
@@ -149,37 +149,40 @@ class RegularizedGAN(object):
                 nonreg_idx += 1
         return self.latent_dist.join_dist_infos(ret)
 
-    def add_images_to_summary(self, z_var, images_name):
-            _, x_dist_info = self.generate(z_var)
+    def add_images_to_summary(self, x_dist_info, images_name):
+    # def add_images_to_summary(self, z_var, images_name):
+    #         _, x_dist_info = self.generate(z_var)
 
-            # just take the mean image
-            if isinstance(self.output_dist, Bernoulli):
-                img_var = x_dist_info["p"]
-            elif isinstance(self.output_dist, Gaussian):
-                img_var = x_dist_info["mean"]
-            else:
-                raise NotImplementedError
-            img_var = self.dataset.inverse_transform(img_var)
-            rows = 10  # Number of rows and columns of images to generate
-            # (n, h, w, c)
-            img_var = tf.reshape(img_var, [self.batch_size] + list(self.image_shape))
-            img_var = img_var[:rows * rows, :, :, :]
-            # (rows, rows, h, w, c)
-            imgs = tf.reshape(img_var, [rows, rows] + list(self.image_shape))
-            stacked_img = []
-            for row in xrange(rows):
-                row_img = []
-                for col in xrange(rows):
-                    row_img.append(imgs[row, col, :, :, :])
-                stacked_img.append(tf.concat(1, row_img))
-            imgs = tf.concat(0, stacked_img)
-            imgs = tf.expand_dims(imgs, 0)
-            tf.summary.image(name=images_name, tensor=imgs)
+        # just take the mean image
+        if isinstance(self.output_dist, Bernoulli):
+            img_var = x_dist_info["p"]
+        elif isinstance(self.output_dist, Gaussian):
+            img_var = x_dist_info["mean"]
+        else:
+            raise NotImplementedError
+        img_var = self.dataset.inverse_transform(img_var)
+        rows = 10  # Number of rows and columns of images to generate
+        # (n, h, w, c)
+        img_var = tf.reshape(img_var, [self.batch_size] + list(self.image_shape))
+        img_var = img_var[:rows * rows, :, :, :]
+        # (rows, rows, h, w, c)
+        imgs = tf.reshape(img_var, [rows, rows] + list(self.image_shape))
+        stacked_img = []
+        for row in xrange(rows):
+            row_img = []
+            for col in xrange(rows):
+                row_img.append(imgs[row, col, :, :, :])
+            stacked_img.append(tf.concat(1, row_img))
+        imgs = tf.concat(0, stacked_img)
+        imgs = tf.expand_dims(imgs, 0)
+        return tf.summary.image(name=images_name, tensor=imgs)
 
     def get_samples(self):
         z_vars_and_names = make_list(self.get_z_var())
         for z_var, name in z_vars_and_names:
-            self.add_images_to_summary(z_var, name)
+            _, x_dist_info, _ = self.generate(z_var)
+            self.add_images_to_summary(x_dist_info, name)
+            # self.add_images_to_summary(z_var, name)
         # if len(self.reg_latent_dist.dists) > 0:
         #     return self.get_samples_with_reg_latent_dist()
         # return self.get_samples_without_reg_latent_dist()

@@ -6,10 +6,11 @@ import tensorflow as tf
 from utils.date_time_utils import get_timestamp
 
 
-def sample(checkpoint_path, z_value=None, n_rows=1, n_columns=1):
+def sample(checkpoint_path, image_shape, model, z_value=None, n_rows=1, n_columns=1):
     """
     Args:
         checkpoint_path (str): The checkpoint file path (.ckpt file)
+        image_shape (tuple): The image shape is the format (h, w, c)
         z_value (ndarray, default None): The value of the noise variable z.
          If None, the value is sampled from the variable prior.
         n_rows (int): The number of samples rows.
@@ -43,15 +44,26 @@ def sample(checkpoint_path, z_value=None, n_rows=1, n_columns=1):
         print("Sampling")
         # (batch_size, h * w * c)
         images = sess.run(images_tensor, feed_dict=feed_dict)
-        images = images[0, :].reshape(1, 28, 28, 1)
+        images = model.output_dist.activate_dist(images)
+        # images = images[:n_rows * n_columns, :]
+        # images = images.reshape(n_rows, n_columns, *image_shape)
+        # stacked_img = []
+        # for row in xrange(n_rows):
+        #     row_img = []
+        #     for col in xrange(n_columns):
+        #         row_img.append(images[row, col, :, :, :])
+        #     stacked_img.append(np.concatenate(1, row_img))
+        # imgs = tf.concat(0, stacked_img)
+        # imgs = tf.expand_dims(imgs, 0)
 
         samples_folder = os.path.relpath(checkpoint_path, 'ckt')
         samples_folder = os.path.dirname(samples_folder)
         name = 'samples_{}'.format(get_timestamp())
         samples_folder = os.path.join('logs', samples_folder, name)
-
         summary_writer = tf.summary.FileWriter(samples_folder, sess.graph)
-        sum = tf.summary.image(name='samples', tensor=images)
+
+        sum = model.add_images_to_summary(images, 'samples')
+        # sum = tf.summary.image(name='samples', tensor=images)
         summary_op = tf.summary.merge([sum])
         summary_str = sess.run(summary_op)
         summary_writer.add_summary(summary_str, 0)

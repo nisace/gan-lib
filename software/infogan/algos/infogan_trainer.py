@@ -80,7 +80,7 @@ class GANTrainer(object):
         with pt.defaults_scope(phase=pt.Phase.train):
             # (n, input_dim)
             z_var = self.model.latent_dist.sample_prior(self.batch_size)
-            fake_x, _ = self.model.generate(z_var)  # (n, d)
+            fake_x, _, x_dist_flat = self.model.generate(z_var)  # (n, d)
             real_d, _, _, _ = self.model.discriminate(input_tensor)  # (n,)
             fake_d, _, fake_reg_z_dist_info, _ = self.model.discriminate(fake_x)
 
@@ -164,6 +164,7 @@ class GANTrainer(object):
 
         tf.add_to_collection("z_var", z_var)
         tf.add_to_collection("generated", fake_x)
+        tf.add_to_collection("x_dist_flat", x_dist_flat)
 
     # def add_images_to_summary(self, z_var, images_name):
     #         _, x_dist_info = self.model.generate(z_var)
