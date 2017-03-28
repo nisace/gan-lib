@@ -41,7 +41,7 @@ def train(model_name, learning_params):
             output_dist=MeanBernoulli(dataset.image_dim),
             latent_spec=latent_spec,
             batch_size=batch_size,
-            image_shape=dataset.image_shape,
+            dataset=dataset
         )
     elif model_name == 'mnist_wasserstein':
         dataset = MnistDataset()
@@ -52,7 +52,7 @@ def train(model_name, learning_params):
             output_dist=MeanBernoulli(dataset.image_dim),
             latent_spec=latent_spec,
             batch_size=batch_size,
-            image_shape=dataset.image_shape,
+            dataset=dataset,
             final_activation=None,
         )
     elif model_name == 'celebA_infogan':
@@ -74,7 +74,7 @@ def train(model_name, learning_params):
             output_dist=MeanGaussian(dataset.image_dim, fix_std=True),
             latent_spec=latent_spec,
             batch_size=batch_size,
-            image_shape=dataset.image_shape,
+            dataset=dataset,
         )
     elif model_name == 'celebA_wasserstein':
         dataset = CelebADataset()
@@ -85,7 +85,7 @@ def train(model_name, learning_params):
             output_dist=MeanGaussian(dataset.image_dim, fix_std=True),
             latent_spec=latent_spec,
             batch_size=batch_size,
-            image_shape=dataset.image_shape,
+            dataset=dataset,
             final_activation=None,
         )
     else:
