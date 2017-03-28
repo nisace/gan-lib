@@ -15,7 +15,7 @@ To run in docker, use the docker.sh script:
 $ git clone git@github.com:nisace/gan-lib.git
 $ cd gan-lib/
 $ ./docker.sh {build, run} {cpu, gpu}
-root@X:/gan-lib# python manage.py train -p {params/mnist.yml, params/celebA.yml, params/mnist_wasserstein_.yml, params/celebA_wasserstein.yml}
+root@X:/gan-lib# python manage.py train -p {params/mnist.yml, params/celebA.yml, params/mnist_wasserstein_.yml, params/celebA_wasserstein.yml,...}
 ```
 
 ## Seeing results
@@ -24,6 +24,20 @@ You can launch TensorBoard to view the generated images:
 
 ```bash
 tensorboard --logdir logs/
+```
+
+## Sampling from a trained model
+
+You can sample from a trained model:
+
+```bash
+python manage.py sample -p path/to/checkpoint.ckpt
+```
+
+Example:
+
+```bash
+python manage.py sample -p ckt/mnist_infogan/mnist_infogan_2017_03_20_10_49_54/mnist_infogan_2017_03_20_10_49_54_400.ckpt
 ```
 
 ## Examples

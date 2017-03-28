@@ -8,24 +8,25 @@ from utils.python_utils import make_list
 
 
 class RegularizedGAN(object):
-    def __init__(self, output_dist, latent_spec, batch_size, image_shape,
-                 dataset, final_activation=tf.nn.sigmoid):
+    def __init__(self, output_dist, latent_spec, batch_size, dataset,
+                 final_activation=tf.nn.sigmoid):
         """
         Args:
-            output_dist (Distribution):
-            latent_spec (list): List of latent distributions. [(Distribution, bool)]
+            output_dist (Distribution): The output distiribution.
+            latent_spec (list): List of latent distributions.
+             [(Distribution, bool)]
              The boolean indicates if the distribution should be used for
              regularization.
-            batch_size (int):
-            image_shape (tuple): (w, h, 1)
+            batch_size (int): The batch size
+            dataset (Dataset): used for image_shape and inverse_transform()
         """
-        self.dataset = dataset
         self.output_dist = output_dist
         self.latent_spec = latent_spec
         self.latent_dist = Product([x for x, _ in latent_spec])
         self.reg_latent_dist = Product([x for x, reg in latent_spec if reg])
         self.nonreg_latent_dist = Product([x for x, reg in latent_spec if not reg])
         self.batch_size = batch_size
+        self.dataset = dataset
         self.image_shape = dataset.image_shape
         self.image_size = self.image_shape[0]
         assert all(isinstance(x, (Gaussian, Categorical, Bernoulli)) for x in self.reg_latent_dist.dists)

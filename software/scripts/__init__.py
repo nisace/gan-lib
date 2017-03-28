@@ -24,15 +24,20 @@ def train(params_file):
 
 
 #TODO: get sampling_type choices dynamically from Model object
-@all_scripts.command()
+@all_scripts.command(context_settings=dict(max_content_width=100))
 @click.option('--checkpoint-path', '-p',
               prompt='Please specify the checkpoint file to load',
               help='The path of the checkpoint file to load (.ckpt).')
 @click.option('--sampling-type', '-s',
               type=click.Choice(['random', 'latent_code_influence']),
-              prompt='Please specify the sampling type.',
+              prompt='Please specify the sampling type',
               default='random',
-              help='The type of sampling to perform.')
+              help='The type of sampling to perform:\n'
+                   '- random: all samples are independent.\n'
+                   '- latent_code_influence: the noise generator input is '
+                   'the same along each column, except for one of the '
+                   'latent distributions, for which the value varies along '
+                   'the column.')
 def sample(checkpoint_path, sampling_type):
     import sample
     model_path = os.path.relpath(checkpoint_path, 'ckt')
