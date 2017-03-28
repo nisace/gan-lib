@@ -169,7 +169,7 @@ class GANTrainer(object):
         raise NotImplementedError
 
     def train(self):
-        with open(os.path.join(self.log_dir, 'model.pkl'), 'wb') as f:
+        with open(os.path.join(self.checkpoint_dir, 'model.pkl'), 'wb') as f:
             pkl.dump(self.model, f)
 
         self.init_opt()

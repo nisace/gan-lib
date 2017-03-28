@@ -40,8 +40,7 @@ def train(params_file):
                    'the column.')
 def sample(checkpoint_path, sampling_type):
     import sample
-    model_path = os.path.relpath(checkpoint_path, 'ckt')
-    model_path = os.path.dirname(os.path.join('logs', model_path))
+    model_path = os.path.dirname(checkpoint_path)
     model_path = os.path.join(model_path, 'model.pkl')
     with open(model_path, 'rb') as f:
         model = pkl.load(f)
