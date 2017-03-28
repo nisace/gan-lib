@@ -1,21 +1,24 @@
 import prettytensor as pt
 import tensorflow as tf
+import numpy as np
 
 from infogan.misc.custom_ops import leaky_rectify
 from infogan.misc.distributions import Product, Distribution, Gaussian, Categorical, Bernoulli
+from utils.python_utils import make_list
 
 
 class RegularizedGAN(object):
-    def __init__(self, output_dist, latent_spec, batch_size, image_shape,
+    def __init__(self, output_dist, latent_spec, batch_size, dataset,
                  final_activation=tf.nn.sigmoid):
         """
         Args:
-            output_dist (Distribution):
-            latent_spec (list): List of latent distributions. [(Distribution, bool)]
+            output_dist (Distribution): The output distiribution.
+            latent_spec (list): List of latent distributions.
+             [(Distribution, bool)]
              The boolean indicates if the distribution should be used for
              regularization.
-            batch_size (int):
-            image_shape (tuple): (w, h, 1)
+            batch_size (int): The batch size
+            dataset (Dataset): used for image_shape and inverse_transform()
         """
         self.output_dist = output_dist
         self.latent_spec = latent_spec
@@ -23,8 +26,9 @@ class RegularizedGAN(object):
         self.reg_latent_dist = Product([x for x, reg in latent_spec if reg])
         self.nonreg_latent_dist = Product([x for x, reg in latent_spec if not reg])
         self.batch_size = batch_size
-        self.image_shape = image_shape
-        self.image_size = image_shape[0]
+        self.dataset = dataset
+        self.image_shape = dataset.image_shape
+        self.image_size = self.image_shape[0]
         assert all(isinstance(x, (Gaussian, Categorical, Bernoulli)) for x in self.reg_latent_dist.dists)
 
         self.reg_cont_latent_dist = Product([x for x in self.reg_latent_dist.dists if isinstance(x, Gaussian)])
@@ -32,6 +36,14 @@ class RegularizedGAN(object):
 
         self.final_activation = final_activation
         self.build_network()
+
+    def __getstate__(self):
+        pickling_dict = self.__dict__.copy()
+        del pickling_dict['discriminator_template']
+        del pickling_dict['generator_template']
+        del pickling_dict['encoder_template']
+        del pickling_dict['final_activation']
+        return pickling_dict
 
     def build_network(self):
         raise NotImplementedError
@@ -49,7 +61,7 @@ class RegularizedGAN(object):
     def generate(self, z_var):
         x_dist_flat = self.generator_template.construct(input=z_var)
         x_dist_info = self.output_dist.activate_dist(x_dist_flat)
-        return self.output_dist.sample(x_dist_info), x_dist_info
+        return self.output_dist.sample(x_dist_info), x_dist_info, x_dist_flat
 
     def disc_reg_z(self, reg_z_var):
         ret = []
@@ -137,6 +149,160 @@ class RegularizedGAN(object):
                 ret.append(nonreg_dist_infos[nonreg_idx])
                 nonreg_idx += 1
         return self.latent_dist.join_dist_infos(ret)
+
+    def add_images_to_summary(self, x_dist_flat, images_name,
+                              collections=None, n_rows=10, n_columns=10):
+        x_dist_info = self.output_dist.activate_dist(x_dist_flat)
+
+        # just take the mean image
+        if isinstance(self.output_dist, Bernoulli):
+            img_var = x_dist_info["p"]
+        elif isinstance(self.output_dist, Gaussian):
+            img_var = x_dist_info["mean"]
+        else:
+            raise NotImplementedError
+        img_var = self.dataset.inverse_transform(img_var)
+        # (n, h, w, c)
+        img_var = tf.reshape(img_var, [self.batch_size] + list(self.image_shape))
+        img_var = img_var[:n_rows * n_columns, :, :, :]
+        # (rows, rows, h, w, c)
+        shape = [n_rows, n_columns] + list(self.image_shape)
+        imgs = tf.reshape(img_var, shape)
+        stacked_img = []
+        for row in xrange(n_rows):
+            row_img = []
+            for col in xrange(n_columns):
+                row_img.append(imgs[row, col, :, :, :])
+            stacked_img.append(tf.concat(1, row_img))
+        imgs = tf.concat(0, stacked_img)
+        imgs = tf.expand_dims(imgs, 0)
+        tf.summary.image(name=images_name, tensor=imgs,
+                         collections=collections)
+
+    def get_test_samples(self, sess, z_tensor, images_tensor, sampling_type,
+                         collections=None, min_continuous=-2.,
+                         max_continuous=2.):
+        if collections is None:
+            collections = ['samples']
+        z_vars_and_names = make_list(self.get_z_var(sampling_type,
+                                                    min_continuous,
+                                                    max_continuous))
+        for z_var, name in z_vars_and_names:
+            feed_dict = {z_tensor.name: z_var}
+            x_dist_flat = sess.run(images_tensor, feed_dict=feed_dict)
+            self.add_images_to_summary(x_dist_flat, name,
+                                       collections=collections)
+
+    def get_train_samples(self, collections=None):
+        if len(self.reg_latent_dist.dists) > 0:
+            sampling_type = 'latent_code_influence'
+        else:
+            sampling_type = 'random'
+        z_vars_and_names = make_list(self.get_z_var(sampling_type))
+        for z_var, name in z_vars_and_names:
+            _, _, x_dist_flat = self.generate(z_var)
+            self.add_images_to_summary(x_dist_flat, name, collections)
+
+    def get_z_var(self, sampling_type, min_continuous=-1., max_continuous=1.):
+        """
+        Args:
+            sampling_type (str): The type of z_var to get
+        """
+        if sampling_type == 'random':
+            return self.get_random_z_var()
+        elif sampling_type == 'latent_code_influence':
+            return self.get_latent_code_influence_z_var(
+                min_continuous=min_continuous,
+                max_continuous=max_continuous)
+        else:
+            raise NotImplementedError
+
+    def get_random_z_var(self):
+        with tf.Session():
+            # (n, d)
+            z_var = self.latent_dist.sample_prior(self.batch_size).eval()
+        return z_var, 'samples'
+
+    def get_latent_code_influence_z_var(self, n_samples=10, n_variations=10,
+                                        min_continuous=-1.,
+                                        max_continuous=1.):
+        """
+        Args:
+            n_samples (int): The number of different samples (n_columns).
+            n_variations (int): The number of variations for each latent code
+             (n_rows).
+            min_continuous (float): The minimum value for a continuous latent
+             code
+            max_continuous (float): The maximum value for a continuous latent
+             code
+        """
+        if len(self.reg_latent_dist.dists) == 0:
+            raise ValueError('The model must have at least one regularization '
+                             'latent distribution.')
+        with tf.Session():
+            # (n, d) with 10 * 10 samples + other samples
+            n = n_samples * n_variations
+            fixed_noncat = self.nonreg_latent_dist.sample_prior(n_samples)
+            fixed_noncat = np.tile(fixed_noncat.eval(), [n_variations, 1])
+            other = self.nonreg_latent_dist.sample_prior(self.batch_size - n)
+            other = other.eval()
+            fixed_noncat = np.concatenate([fixed_noncat, other], axis=0)
+
+            fixed_cat = self.reg_latent_dist.sample_prior(n_samples).eval()
+            fixed_cat = np.tile(fixed_cat, [n_variations, 1])
+            other = self.reg_latent_dist.sample_prior(self.batch_size - n)
+            other = other.eval()
+            fixed_cat = np.concatenate([fixed_cat, other], axis=0)
+
+        offset = 0
+        z_vars_and_names = []
+        for dist_idx, dist in enumerate(self.reg_latent_dist.dists):
+            if isinstance(dist, Gaussian):
+                assert dist.dim == 1, "Only dim=1 is currently supported"
+                vary_cat = dist.varying_values(min_continuous, max_continuous,
+                                               n_variations)
+                vary_cat = np.repeat(vary_cat, n_samples)
+                other = np.zeros(self.batch_size - n)
+                vary_cat = np.concatenate((vary_cat, other)).reshape((-1, 1))
+                vary_cat = np.asarray(vary_cat, dtype=np.float32)
+
+                cur_cat = np.copy(fixed_cat)
+                cur_cat[:, offset:offset+1] = vary_cat
+                offset += 1
+            elif isinstance(dist, Categorical):
+                lookup = np.eye(dist.dim, dtype=np.float32)
+                cat_ids = []
+                for idx in xrange(n_variations):
+                    cat_ids.extend([idx] * n_samples)
+                cat_ids.extend([0] * (self.batch_size - n))
+                cur_cat = np.copy(fixed_cat)
+                cur_cat[:, offset:offset+dist.dim] = lookup[cat_ids]
+                offset += dist.dim
+            elif isinstance(dist, Bernoulli):
+                assert dist.dim == 1, "Only dim=1 is currently supported"
+                lookup = np.eye(dist.dim, dtype=np.float32)
+                cat_ids = []
+                for idx in xrange(n_variations):
+                    cat_ids.extend([int(idx / 5)] * n_samples)
+                cat_ids.extend([0] * (self.batch_size - n))
+                cur_cat = np.copy(fixed_cat)
+                cur_cat[:, offset:offset+dist.dim] = np.expand_dims(np.array(cat_ids), axis=-1)
+                # import ipdb; ipdb.set_trace()
+                offset += dist.dim
+            else:
+                raise NotImplementedError
+            # (n, d)
+            # The 10 first rows have different z and c and are tiled 10 times
+            # except for the varying c that is the same by blocks of 10 rows
+            # and linearly varies between blocks
+            z_var = np.concatenate([fixed_noncat, cur_cat], axis=1)
+
+            # Images where each column had a different fixed z and c
+            # The varying c varies along each column
+            # (a different value for each row)
+            name = 'image_{}_{}'.format(dist_idx, dist.__class__.__name__)
+            z_vars_and_names.append((z_var, name))
+        return z_vars_and_names
 
 
 class MNISTInfoGAN(RegularizedGAN):
