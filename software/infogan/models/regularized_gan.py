@@ -214,6 +214,8 @@ class RegularizedGAN(object):
             return self.get_latent_code_influence_z_var(
                 min_continuous=min_continuous,
                 max_continuous=max_continuous)
+        elif sampling_type == 'linear_interpolation':
+            return self.get_linear_interpolation_z_var()
         else:
             raise NotImplementedError
 
@@ -303,6 +305,21 @@ class RegularizedGAN(object):
             name = 'image_{}_{}'.format(dist_idx, dist.__class__.__name__)
             z_vars_and_names.append((z_var, name))
         return z_vars_and_names
+
+    def get_linear_interpolation_z_var(self, n_samples=10, n_variations=10):
+        with tf.Session():
+            n = n_samples * n_variations
+            all_z_start = self.latent_dist.sample_prior(n_samples)
+            all_z_end = self.latent_dist.sample_prior(n_samples)
+            coefficients = np.linspace(start=0, stop=1, num=n_variations)
+            z_var = []
+            for z_start, z_end in zip(all_z_start.eval(), all_z_end.eval()):
+                for coeff in coefficients:
+                    z_var.append(coeff * z_start + (1 - coeff) * z_end)
+            other = self.latent_dist.sample_prior(self.batch_size - n).eval()
+            z_var = np.concatenate([z_var, other], axis=0)
+            z_var = np.asarray(z_var, dtype=np.float32)
+            return z_var, 'linear_interpolations'
 
 
 class MNISTInfoGAN(RegularizedGAN):

@@ -29,7 +29,9 @@ def train(params_file):
               prompt='Please specify the checkpoint file to load',
               help='The path of the checkpoint file to load (.ckpt).')
 @click.option('--sampling-type', '-s',
-              type=click.Choice(['random', 'latent_code_influence']),
+              type=click.Choice(['random',
+                                 'latent_code_influence',
+                                 'linear_interpolation']),
               prompt='Please specify the sampling type',
               default='random',
               help='The type of sampling to perform:\n'
