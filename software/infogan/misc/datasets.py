@@ -181,6 +181,27 @@ class CelebADataset(object):
         return data
 
 
-class Horse2Zebra(object):
-    def __init__(self, dtype=np.float32):
+class HorseOrZebraDataset(object):
+    def __init__(self, name, dtype=np.float32):
+        """
+        Args:
+            name (str): 'horse' or 'zebra'
+        """
+        assert name in ['horse', 'zebra']
+        self.name = 'A' if name == 'horse' else 'B'
         self.dtype = dtype
+        self.train = DatasetIterator(self.images_paths('train'))
+        self.test = DatasetIterator(self.images_paths('test'))
+
+    def images_paths(self, set):
+        origin = 'https://people.eecs.berkeley.edu/~taesung_park/CycleGAN/datasets/horse2zebra.zip'
+        origin_file_name = os.path.basename(origin)
+        download_folder = os.path.join(DATA_FOLDER, 'horse2zebra')
+        download_path = os.path.join(download_folder, origin_file_name)
+        download(origin, download_path)
+        extract_path = extract_all(download_path)
+        extract_path = os.path.join(extract_path, set + self.name)
+        return np.array(glob(os.path.join(extract_path, '*.jpg')))
+
+    def inverse_transform(self, data):
+        return data
