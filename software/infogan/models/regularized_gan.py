@@ -18,7 +18,7 @@ class RegularizedGAN(object):
              The boolean indicates if the distribution should be used for
              regularization.
             batch_size (int): The batch size
-            dataset (Dataset): used for image_shape and inverse_transform()
+            dataset (DatasetIterator): used for image_shape and inverse_transform()
         """
         self.output_dist = output_dist
         self.latent_spec = latent_spec
