@@ -3,7 +3,6 @@ import os
 import sys
 
 import numpy as np
-import prettytensor as pt
 import tensorflow as tf
 from progressbar import ETA, Bar, Percentage, ProgressBar
 

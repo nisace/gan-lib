@@ -1,13 +1,8 @@
-import cPickle as pkl
-import os
-import sys
-
-import numpy as np
 import prettytensor as pt
 import tensorflow as tf
-from progressbar import ETA, Bar, Percentage, ProgressBar
 
 from infogan.models.regularized_gan import RegularizedGAN
+from utils.python_utils import make_list
 
 TINY = 1e-8
 
@@ -28,7 +23,23 @@ def apply_optimizer(optimizer, losses, var_list, clip_by_value=None,
     return train_op
 
 
-class LossBuilder(object):
+class AbstractLossBuilder(object):
+    def __init__(self, models):
+        self.models = make_list(models)
+
+        self.log_vars = []
+        self.d_vars = None
+        self.discriminator_trainer = None
+        self.generator_trainer = None
+
+    def get_feed_dict(self):
+        raise NotImplementedError
+
+    def init_opt(self):
+        raise NotImplementedError
+
+
+class LossBuilder(AbstractLossBuilder):
     def __init__(self,
                  model,
                  loss,
@@ -51,17 +62,12 @@ class LossBuilder(object):
         self.discrim_grad_clip_by_value = discrim_grad_clip_by_value
         self.generator_grad_clip_by_value = generator_grad_clip_by_value
 
-        self.discriminator_trainer = None
-        self.generator_trainer = None
         self.g_input = None
         self.d_input = None
-        self.log_vars = []
         self.discrim_loss = None
         self.generator_loss = None
         self.fake_reg_z_dist_info = None
-
-    def get_feed_dict(self):
-        raise NotImplementedError
+        super(LossBuilder, self).__init__(models=[model])
 
     def prepare_g_input(self):
         raise NotImplementedError
@@ -113,7 +119,7 @@ class LossBuilder(object):
         with pt.defaults_scope(phase=pt.Phase.train):
             all_vars = tf.trainable_variables()
             self.d_vars = [var for var in all_vars if var.name.startswith('d_')]
-            self.g_vars = [var for var in all_vars if var.name.startswith('g_')]
+            g_vars = [var for var in all_vars if var.name.startswith('g_')]
 
 
             self.discriminator_trainer = apply_optimizer(self.discrim_optimizer,
@@ -123,7 +129,7 @@ class LossBuilder(object):
 
             self.generator_trainer = apply_optimizer(self.generator_optimizer,
                                                      losses=[self.generator_loss],
-                                                     var_list=self.g_vars,
+                                                     var_list=g_vars,
                                                      clip_by_value=self.generator_grad_clip_by_value)
 
 
