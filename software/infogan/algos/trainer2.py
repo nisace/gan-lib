@@ -88,7 +88,7 @@ class Trainer(object):
                         print("Model saved in file: %s" % fn)
 
                 # (n, h, w, c)
-                feed_dict = self.loss_builder.get_feed_dict()
+                feed_dict = self.loss_builder.get_d_feed_dict()
                 summary_str = sess.run(summary_op, feed_dict)
 
                 summary_writer.add_summary(summary_str, counter)
@@ -109,10 +109,11 @@ class GANTrainer(Trainer):
         super(GANTrainer, self).__init__(**kwargs)
 
     def update(self, sess, i, log_vars, all_log_vals):
-        feed_dict = self.loss_builder.get_feed_dict()
-        sess.run(self.loss_builder.generator_trainer, feed_dict)
+        feed_dict = self.loss_builder.get_g_feed_dict()
+        sess.run(self.loss_builder.g_trainer, feed_dict)
         if i % self.gen_disc_update_ratio == 0:
-            log_vals = sess.run([self.loss_builder.discriminator_trainer] + log_vars, feed_dict)[1:]
+            feed_dict = self.loss_builder.get_d_feed_dict()
+            log_vals = sess.run([self.loss_builder.d_trainer] + log_vars, feed_dict)[1:]
             all_log_vals.append(log_vals)
         return all_log_vals
 
@@ -120,21 +121,21 @@ class GANTrainer(Trainer):
 class WassersteinGANTrainer(Trainer):
     def __init__(self):
         self.n_critic = 5
-        self.discrim_weight_clip_by_value = [-0.01, 0.01]
+        self.d_weight_clip_by_value = [-0.01, 0.01]
         self.clip = None
         super(WassersteinGANTrainer, self).__init__()
 
     def update(self, sess, i, log_vars, all_log_vals):
         for _ in range(self.n_critic):
-            feed_dict = self.loss_builder.get_feed_dict()
-            log_vals = sess.run([self.loss_builder.discriminator_trainer] + log_vars,
+            feed_dict = self.loss_builder.get_d_feed_dict()
+            log_vals = sess.run([self.loss_builder.d_trainer] + log_vars,
                                 feed_dict)[1:]
             if self.clip is None:
                 self.clip = [tf.assign(
-                    d, tf.clip_by_value(d, *self.discrim_weight_clip_by_value))
-                             for d in self.d_vars]
+                    d, tf.clip_by_value(d, *self.d_weight_clip_by_value))
+                             for d in self.loss_builder.d_vars]
             sess.run(self.clip)
             all_log_vals.append(log_vals)
-        feed_dict = self.loss_builder.get_feed_dict()
-        sess.run(self.loss_builder.generator_trainer, feed_dict)
+        feed_dict = self.loss_builder.get_g_feed_dict()
+        sess.run(self.loss_builder.g_trainer, feed_dict)
         return all_log_vals

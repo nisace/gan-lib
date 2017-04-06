@@ -27,16 +27,47 @@ class AbstractLossBuilder(object):
     def __init__(self, models):
         self.models = make_list(models)
 
+        self.d_loss = None
+        self.g_loss = None
         self.log_vars = []
         self.d_vars = None
-        self.discriminator_trainer = None
-        self.generator_trainer = None
+        self.d_trainer = None
+        self.g_trainer = None
 
-    def get_feed_dict(self):
+    def get_g_feed_dict(self):
+        raise NotImplementedError
+
+    def get_d_feed_dict(self):
         raise NotImplementedError
 
     def init_opt(self):
+        self.init_loss()
+        self.log_vars.append(("discriminator_loss", self.d_loss))
+        self.log_vars.append(("generator_loss", self.g_loss))
+        self.add_train_samples_to_summary()
+        self.init_optimizers()
+        for k, v in self.log_vars:
+            tf.summary.scalar(name=k, tensor=v)
+
+    def init_loss(self):
         raise NotImplementedError
+
+    def add_train_samples_to_summary(self):
+        raise NotImplementedError
+
+    def init_optimizers(self):
+        with pt.defaults_scope(phase=pt.Phase.train):
+            all_vars = tf.trainable_variables()
+            self.d_vars = [var for var in all_vars if var.name.startswith('d_')]
+            g_vars = [var for var in all_vars if var.name.startswith('g_')]
+
+            self.d_trainer = apply_optimizer(self.d_optimizer,
+                                             losses=[self.d_loss],
+                                             var_list=self.d_vars)
+
+            self.g_trainer = apply_optimizer(self.g_optimizer,
+                                             losses=[self.g_loss],
+                                             var_list=g_vars)
 
 
 class LossBuilder(AbstractLossBuilder):
@@ -47,8 +78,6 @@ class LossBuilder(AbstractLossBuilder):
                  batch_size,
                  discrim_optimizer,
                  generator_optimizer,
-                 generator_grad_clip_by_value=None,
-                 discrim_grad_clip_by_value=None,
                  ):
         """
         :type model: RegularizedGAN
@@ -57,57 +86,31 @@ class LossBuilder(AbstractLossBuilder):
         self.loss = loss
         self.dataset = dataset
         self.batch_size = batch_size
-        self.generator_optimizer = generator_optimizer
-        self.discrim_optimizer = discrim_optimizer
-        self.discrim_grad_clip_by_value = discrim_grad_clip_by_value
-        self.generator_grad_clip_by_value = generator_grad_clip_by_value
+        self.g_optimizer = generator_optimizer
+        self.d_optimizer = discrim_optimizer
 
-        self.g_input = None
-        self.d_input = None
-        self.discrim_loss = None
-        self.generator_loss = None
-        self.fake_reg_z_dist_info = None
+        self.fake_x = None
         super(LossBuilder, self).__init__(models=[model])
 
-    def prepare_g_input(self):
-        raise NotImplementedError
-
-    def prepare_d_input(self):
-        d_input_shape = [self.batch_size, self.dataset.image_dim]
-        # d_input_shape = [self.batch_size, self.d_input_dim]
-        self.d_input = tf.placeholder(tf.float32, d_input_shape)
-
-    def init_opt(self):
-        self.init_loss()
-        self.add_train_samples_to_summary()
-        self.init_optimizers()
-        for k, v in self.log_vars:
-            tf.summary.scalar(name=k, tensor=v)
-
     def init_loss(self):
-        self.prepare_g_input()
-        self.prepare_d_input()
-
         with pt.defaults_scope(phase=pt.Phase.train):
             # (n, d)
-            fake_x, _, x_dist_flat = self.model.generate(self.g_input)
+            fake_x = self.model.generate()
+            x_dist_flat = self.model.get_x_dist_flat()
             # (n,)
-            real_d, _, _, _ = self.model.discriminate(self.d_input)
-            fake_d, _, fake_reg_z_dist_info, _ = self.model.discriminate(fake_x)
+            real_d = self.model.discriminate()
+            fake_d = self.model.discriminate(fake_x)
 
             self.log_vars.append(("max_real_d", tf.reduce_max(real_d)))
             self.log_vars.append(("min_real_d", tf.reduce_min(real_d)))
             self.log_vars.append(("max_fake_d", tf.reduce_max(fake_d)))
             self.log_vars.append(("min_fake_d", tf.reduce_min(fake_d)))
-            self.fake_reg_z_dist_info = fake_reg_z_dist_info
+            self.fake_x = fake_x
 
-            self.discrim_loss = self.loss.get_d_loss(real_d, fake_d)
-            self.generator_loss = self.loss.get_g_loss(fake_d)
+            self.d_loss = self.loss.get_d_loss(real_d, fake_d)
+            self.g_loss = self.loss.get_g_loss(fake_d)
 
-            self.log_vars.append(("discriminator_loss", self.discrim_loss))
-            self.log_vars.append(("generator_loss", self.generator_loss))
-
-        tf.add_to_collection("z_var", self.g_input)
+        tf.add_to_collection("z_var", self.model.g_input)
         tf.add_to_collection("x_dist_flat", x_dist_flat)
 
     def add_train_samples_to_summary(self):
@@ -115,31 +118,14 @@ class LossBuilder(AbstractLossBuilder):
             with tf.variable_scope("train_samples", reuse=True):
                 self.model.get_train_samples()
 
-    def init_optimizers(self):
-        with pt.defaults_scope(phase=pt.Phase.train):
-            all_vars = tf.trainable_variables()
-            self.d_vars = [var for var in all_vars if var.name.startswith('d_')]
-            g_vars = [var for var in all_vars if var.name.startswith('g_')]
-
-
-            self.discriminator_trainer = apply_optimizer(self.discrim_optimizer,
-                                                         losses=[self.discrim_loss],
-                                                         var_list=self.d_vars,
-                                                         clip_by_value=self.discrim_grad_clip_by_value)
-
-            self.generator_trainer = apply_optimizer(self.generator_optimizer,
-                                                     losses=[self.generator_loss],
-                                                     var_list=g_vars,
-                                                     clip_by_value=self.generator_grad_clip_by_value)
-
 
 class GANLossBuilder(LossBuilder):
-    def get_feed_dict(self):
-        x, _ = self.dataset.train.next_batch(self.batch_size)
-        return {self.d_input: x}
+    def get_g_feed_dict(self):
+        return None
 
-    def prepare_g_input(self):
-        self.g_input = self.model.latent_dist.sample_prior(self.batch_size)
+    def get_d_feed_dict(self):
+        x, _ = self.dataset.train.next_batch(self.batch_size)
+        return {self.model.d_input: x}
 
 
 class InfoGANLossBuilder(GANLossBuilder):
@@ -152,12 +138,13 @@ class InfoGANLossBuilder(GANLossBuilder):
         with pt.defaults_scope(phase=pt.Phase.train):
             mi_est = tf.constant(0.)
             cross_ent = tf.constant(0.)
-            reg_z = self.model.reg_z(self.g_input)
+            reg_z = self.model.reg_z()
+            fake_reg_z_dist_info = self.model.get_reg_dist_info(self.fake_x)
             # compute for discrete and continuous codes separately
             # discrete:
             if len(self.model.reg_disc_latent_dist.dists) > 0:
                 disc_reg_z = self.model.disc_reg_z(reg_z)
-                disc_reg_dist_info = self.model.disc_reg_dist_info(self.fake_reg_z_dist_info)
+                disc_reg_dist_info = self.model.disc_reg_dist_info(fake_reg_z_dist_info)
                 disc_log_q_c_given_x = self.model.reg_disc_latent_dist.logli(disc_reg_z, disc_reg_dist_info)
                 disc_log_q_c = self.model.reg_disc_latent_dist.logli_prior(disc_reg_z)
                 disc_cross_ent = tf.reduce_mean(-disc_log_q_c_given_x)
@@ -167,12 +154,12 @@ class InfoGANLossBuilder(GANLossBuilder):
                 cross_ent += disc_cross_ent
                 self.log_vars.append(("MI_disc", disc_mi_est))
                 self.log_vars.append(("CrossEnt_disc", disc_cross_ent))
-                self.discrim_loss -= self.info_reg_coeff * disc_mi_est
-                self.generator_loss -= self.info_reg_coeff * disc_mi_est
+                self.d_loss -= self.info_reg_coeff * disc_mi_est
+                self.g_loss -= self.info_reg_coeff * disc_mi_est
 
             if len(self.model.reg_cont_latent_dist.dists) > 0:
                 cont_reg_z = self.model.cont_reg_z(reg_z)
-                cont_reg_dist_info = self.model.cont_reg_dist_info(self.fake_reg_z_dist_info)
+                cont_reg_dist_info = self.model.cont_reg_dist_info(fake_reg_z_dist_info)
                 cont_log_q_c_given_x = self.model.reg_cont_latent_dist.logli(cont_reg_z, cont_reg_dist_info)
                 cont_log_q_c = self.model.reg_cont_latent_dist.logli_prior(cont_reg_z)
                 cont_cross_ent = tf.reduce_mean(-cont_log_q_c_given_x)
@@ -182,10 +169,10 @@ class InfoGANLossBuilder(GANLossBuilder):
                 cross_ent += cont_cross_ent
                 self.log_vars.append(("MI_cont", cont_mi_est))
                 self.log_vars.append(("CrossEnt_cont", cont_cross_ent))
-                self.discrim_loss -= self.info_reg_coeff * cont_mi_est
-                self.generator_loss -= self.info_reg_coeff * cont_mi_est
+                self.d_loss -= self.info_reg_coeff * cont_mi_est
+                self.g_loss -= self.info_reg_coeff * cont_mi_est
 
-            for idx, dist_info in enumerate(self.model.reg_latent_dist.split_dist_info(self.fake_reg_z_dist_info)):
+            for idx, dist_info in enumerate(self.model.reg_latent_dist.split_dist_info(fake_reg_z_dist_info)):
                 if "stddev" in dist_info:
                     self.log_vars.append(("max_std_%d" % idx, tf.reduce_max(dist_info["stddev"])))
                     self.log_vars.append(("min_std_%d" % idx, tf.reduce_min(dist_info["stddev"])))

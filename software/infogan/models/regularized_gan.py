@@ -7,7 +7,25 @@ from infogan.misc.distributions import Product, Distribution, Gaussian, Categori
 from utils.python_utils import make_list
 
 
-class RegularizedGAN(object):
+class GANModel(object):
+    def g_input(self):
+        raise NotImplementedError
+
+    def d_input(self):
+        raise NotImplementedError
+
+    def generate(self):
+        raise NotImplementedError
+
+    def discriminate(self, d_input):
+        """
+        Args:
+            d_input (tensor): The discriminator input tensor.
+        """
+        raise NotImplementedError
+
+
+class RegularizedGAN(GANModel):
     def __init__(self, output_dist, latent_spec, batch_size, dataset,
                  final_activation=tf.nn.sigmoid):
         """
@@ -48,20 +66,41 @@ class RegularizedGAN(object):
     def build_network(self):
         raise NotImplementedError
 
-    def discriminate(self, x_var):
-        d_out = self.discriminator_template.construct(input=x_var)
-        if self.final_activation is not None:
-            d = self.final_activation(d_out[:, 0])
-        else:
-            d = d_out[:, 0]
-        reg_dist_flat = self.encoder_template.construct(input=x_var)
-        reg_dist_info = self.reg_latent_dist.activate_dist(reg_dist_flat)
-        return d, self.reg_latent_dist.sample(reg_dist_info), reg_dist_info, reg_dist_flat
+    @property
+    def g_input(self):
+        return self.latent_dist.sample_prior(self.batch_size)
 
-    def generate(self, z_var):
+    @property
+    def d_input(self):
+        d_input_shape = [self.batch_size, self.dataset.image_dim]
+        return tf.placeholder(tf.float32, d_input_shape)
+
+    #TODO: add decorator to manage default z_var=self.g_input
+    def generate(self, z_var=None):
+        if z_var is None:
+            z_var = self.g_input
         x_dist_flat = self.generator_template.construct(input=z_var)
         x_dist_info = self.output_dist.activate_dist(x_dist_flat)
-        return self.output_dist.sample(x_dist_info), x_dist_info, x_dist_flat
+        return self.output_dist.sample(x_dist_info)
+
+    def get_x_dist_flat(self, z_var=None):
+        if z_var is None:
+            z_var = self.g_input
+        return self.generator_template.construct(input=z_var)
+
+    def discriminate(self, x_var=None):
+        if x_var is None:
+            x_var = self.d_input
+        d_out = self.discriminator_template.construct(input=x_var)
+        if self.final_activation is not None:
+            return self.final_activation(d_out[:, 0])
+        else:
+            return d_out[:, 0]
+
+    def get_reg_dist_info(self, x_var):
+        reg_dist_flat = self.encoder_template.construct(input=x_var)
+        reg_dist_info = self.reg_latent_dist.activate_dist(reg_dist_flat)
+        return reg_dist_info
 
     def disc_reg_z(self, reg_z_var):
         ret = []
@@ -91,9 +130,11 @@ class RegularizedGAN(object):
                 ret.append(dist_info_i)
         return self.reg_cont_latent_dist.join_dist_infos(ret)
 
-    def reg_z(self, z_var):
+    def reg_z(self, z_var=None):
         """ Return the variables with distribution bool == True (concatenated). """
         ret = []
+        if z_var is None:
+            z_var = self.g_input
         for (_, reg_i), z_i in zip(self.latent_spec, self.latent_dist.split_var(z_var)):
             if reg_i:
                 ret.append(z_i)
@@ -200,7 +241,7 @@ class RegularizedGAN(object):
             sampling_type = 'random'
         z_vars_and_names = make_list(self.get_z_var(sampling_type))
         for z_var, name in z_vars_and_names:
-            _, _, x_dist_flat = self.generate(z_var)
+            x_dist_flat = self.get_x_dist_flat(z_var)
             self.add_images_to_summary(x_dist_flat, name, collections)
 
     def get_z_var(self, sampling_type, min_continuous=-1., max_continuous=1.):
