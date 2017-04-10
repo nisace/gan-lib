@@ -6,7 +6,7 @@ import numpy as np
 from tensorflow.examples.tutorials import mnist
 
 from utils.file_system_utils import download, extract_all
-from utils.image_utils import get_image
+from utils.image_utils import get_image, imread, normalize
 
 DATA_FOLDER = 'data'
 
@@ -181,6 +181,15 @@ class CelebADataset(object):
         return data
 
 
+class HorseOrZebraDatasetIterator(DatasetIterator):
+    def transform(self, data):
+        image = imread(data)
+        return normalize(image)
+
+    def transform_batch(self, batch):
+        return np.array(batch).reshape(-1, 256 * 256 * 3)
+
+
 class HorseOrZebraDataset(object):
     def __init__(self, name, dtype=np.float32):
         """
@@ -190,8 +199,8 @@ class HorseOrZebraDataset(object):
         assert name in ['horse', 'zebra']
         self.name = 'A' if name == 'horse' else 'B'
         self.dtype = dtype
-        self.train = DatasetIterator(self.images_paths('train'))
-        self.test = DatasetIterator(self.images_paths('test'))
+        self.train = HorseOrZebraDatasetIterator(self.images_paths('train'))
+        self.test = HorseOrZebraDatasetIterator(self.images_paths('test'))
 
     def images_paths(self, set):
         origin = 'https://people.eecs.berkeley.edu/~taesung_park/CycleGAN/datasets/horse2zebra.zip'

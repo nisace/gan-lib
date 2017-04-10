@@ -4,7 +4,7 @@ from prettytensor.pretty_tensor_class import Phase
 import numpy as np
 
 
-class conv_batch_norm(pt.VarStoreMethod):
+class conv_norm(pt.VarStoreMethod):
     """Code modification of http://stackoverflow.com/a/33950177"""
 
     def __call__(self, input_layer, epsilon=1e-5, momentum=0.1, name="batch_norm",
@@ -17,7 +17,7 @@ class conv_batch_norm(pt.VarStoreMethod):
             self.gamma = self.variable("gamma", [shp], init=tf.random_normal_initializer(1., 0.02))
             self.beta = self.variable("beta", [shp], init=tf.constant_initializer(0.))
 
-            self.mean, self.variance = tf.nn.moments(input_layer.tensor, [0, 1, 2])
+            self.mean, self.variance = tf.nn.moments(input_layer.tensor, self.moment_axes)
             # sigh...tf's shape system is so..
             self.mean.set_shape((shp,))
             self.variance.set_shape((shp,))
@@ -36,7 +36,19 @@ class conv_batch_norm(pt.VarStoreMethod):
             return input_layer.with_tensor(normalized_x, parameters=self.vars)
 
 
+class conv_batch_norm(conv_norm):
+    def __init__(self):
+        self.moment_axes = [0, 1, 2]
+        super(conv_batch_norm, self).__init__()
+
+
+class conv_instance_norm(conv_norm):
+    def __init__(self):
+        self.moment_axes = [1, 2]
+        super(conv_instance_norm, self).__init__()
+
 pt.Register(assign_defaults=('phase'))(conv_batch_norm)
+pt.Register(assign_defaults=('phase'))(conv_instance_norm)
 
 
 @pt.Register(assign_defaults=('phase'))

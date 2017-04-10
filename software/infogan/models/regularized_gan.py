@@ -8,94 +8,193 @@ from utils.python_utils import make_list
 
 
 class GANModel(object):
-    def g_input(self):
-        raise NotImplementedError
-
-    def d_input(self):
-        raise NotImplementedError
-
-    def generate(self):
-        raise NotImplementedError
-
-    def discriminate(self, d_input):
-        """
-        Args:
-            d_input (tensor): The discriminator input tensor.
-        """
-        raise NotImplementedError
-
-
-class RegularizedGAN(GANModel):
-    def __init__(self, output_dist, latent_spec, batch_size, dataset,
+    def __init__(self, batch_size, output_dataset, output_dist,
                  final_activation=tf.nn.sigmoid):
         """
         Args:
-            output_dist (Distribution): The output distiribution.
-            latent_spec (list): List of latent distributions.
-             [(Distribution, bool)]
-             The boolean indicates if the distribution should be used for
-             regularization.
             batch_size (int): The batch size
-            dataset (DatasetIterator): used for image_shape and inverse_transform()
+            output_dataset (DatasetIterator): used for image_shape
+             and inverse_transform()
+            output_dist (Distribution): The output distribution.
         """
-        self.output_dist = output_dist
-        self.latent_spec = latent_spec
-        self.latent_dist = Product([x for x, _ in latent_spec])
-        self.reg_latent_dist = Product([x for x, reg in latent_spec if reg])
-        self.nonreg_latent_dist = Product([x for x, reg in latent_spec if not reg])
         self.batch_size = batch_size
-        self.dataset = dataset
-        self.image_shape = dataset.image_shape
-        self.image_size = self.image_shape[0]
-        assert all(isinstance(x, (Gaussian, Categorical, Bernoulli)) for x in self.reg_latent_dist.dists)
-
-        self.reg_cont_latent_dist = Product([x for x in self.reg_latent_dist.dists if isinstance(x, Gaussian)])
-        self.reg_disc_latent_dist = Product([x for x in self.reg_latent_dist.dists if isinstance(x, (Categorical, Bernoulli))])
-
+        self.output_dataset = output_dataset
+        self.output_shape = output_dataset.image_shape
+        self.output_size = self.output_shape[0]
+        self.output_dist = output_dist
         self.final_activation = final_activation
-        self.build_network()
+        self.sampling_functions = {
+            'random': self.get_random_g_input,
+            'linear_interpolation': self.get_linear_interpolation_g_input,
+        }
 
     def __getstate__(self):
         pickling_dict = self.__dict__.copy()
         del pickling_dict['discriminator_template']
         del pickling_dict['generator_template']
-        del pickling_dict['encoder_template']
         del pickling_dict['final_activation']
         return pickling_dict
 
+    ###########################################################################
+    # NETWORK
+    ###########################################################################
     def build_network(self):
         raise NotImplementedError
 
-    @property
-    def g_input(self):
-        return self.latent_dist.sample_prior(self.batch_size)
+    def g_input(self, batch_size=None):
+        raise NotImplementedError
 
-    @property
-    def d_input(self):
-        d_input_shape = [self.batch_size, self.dataset.image_dim]
+    def d_input(self, batch_size=None):
+        if batch_size is None:
+            batch_size = self.batch_size
+        d_input_shape = [batch_size, self.output_dataset.image_dim]
         return tf.placeholder(tf.float32, d_input_shape)
 
-    #TODO: add decorator to manage default z_var=self.g_input
-    def generate(self, z_var=None):
-        if z_var is None:
-            z_var = self.g_input
-        x_dist_flat = self.generator_template.construct(input=z_var)
+    # TODO: add decorator to manage default z_var=self.g_input
+    def generate(self, g_input=None):
+        if g_input is None:
+            g_input = self.g_input()
+        x_dist_flat = self.generator_template.construct(input=g_input)
         x_dist_info = self.output_dist.activate_dist(x_dist_flat)
         return self.output_dist.sample(x_dist_info)
 
-    def get_x_dist_flat(self, z_var=None):
-        if z_var is None:
-            z_var = self.g_input
-        return self.generator_template.construct(input=z_var)
+    def get_x_dist_flat(self, g_input=None):
+        if g_input is None:
+            g_input = self.g_input()
+        return self.generator_template.construct(input=g_input)
 
-    def discriminate(self, x_var=None):
-        if x_var is None:
-            x_var = self.d_input
-        d_out = self.discriminator_template.construct(input=x_var)
+    def discriminate(self, d_input=None):
+        if d_input is None:
+            d_input = self.d_input()
+        d_out = self.discriminator_template.construct(input=d_input)
         if self.final_activation is not None:
             return self.final_activation(d_out[:, 0])
         else:
             return d_out[:, 0]
+
+    ###########################################################################
+    # SAMPLING
+    ###########################################################################
+    def get_train_g_input_value(self):
+        return make_list(self.get_g_input_value('random'))
+
+    def get_train_samples(self, collections=None):
+        z_vars_and_names = make_list(self.get_train_g_input_value())
+        for z_var, name in z_vars_and_names:
+            x_dist_flat = self.get_x_dist_flat(z_var)
+            self.add_images_to_summary(x_dist_flat, name, collections)
+
+    def get_test_samples(self, sess, z_tensor, images_tensor, sampling_type,
+                         collections=None, **kwargs):
+        if collections is None:
+            collections = ['samples']
+        z_vars_and_names = self.get_g_input_value(sampling_type, **kwargs)
+        for z_var, name in make_list(z_vars_and_names):
+            feed_dict = {z_tensor.name: z_var}
+            x_dist_flat = sess.run(images_tensor, feed_dict=feed_dict)
+            self.add_images_to_summary(x_dist_flat, name, collections)
+
+    def get_g_input_value(self, sampling_type, **kwargs):
+        """
+        Args:
+            sampling_type (str): The type of z_var to get
+        """
+        try:
+            func = self.sampling_functions[sampling_type]
+        except KeyError:
+            raise KeyError('Unknown sampling_type: {}'.format(sampling_type))
+        return func(**kwargs)
+
+    def get_random_g_input(self):
+        with tf.Session():
+            # (n, d)
+            # TODO: is eval() required? If not, refactor.
+            z_var = self.g_input.eval()
+        return z_var, 'samples'
+
+    def get_linear_interpolation_g_input(self, n_samples=10, n_variations=10):
+        with tf.Session():
+            n = n_samples * n_variations
+            all_z_start = self.g_input(n_samples).eval()
+            all_z_end = self.g_input(n_samples).eval()
+            coefficients = np.linspace(start=0, stop=1, num=n_variations)
+            z_var = []
+            for z_start, z_end in zip(all_z_start, all_z_end):
+                for coeff in coefficients:
+                    z_var.append(coeff * z_start + (1 - coeff) * z_end)
+            other = self.g_input(self.batch_size - n).eval()
+            z_var = np.concatenate([z_var, other], axis=0)
+            z_var = np.asarray(z_var, dtype=np.float32)
+            return z_var, 'linear_interpolations'
+
+    def add_images_to_summary(self, x_dist_flat, images_name,
+                              collections=None, n_rows=10, n_columns=10):
+        x_dist_info = self.output_dist.activate_dist(x_dist_flat)
+
+        # just take the mean image
+        if isinstance(self.output_dist, Bernoulli):
+            img_var = x_dist_info["p"]
+        elif isinstance(self.output_dist, Gaussian):
+            img_var = x_dist_info["mean"]
+        else:
+            raise NotImplementedError
+        img_var = self.output_dataset.inverse_transform(img_var)
+        # (n, h, w, c)
+        img_var = tf.reshape(img_var, [self.batch_size] + list(self.output_shape))
+        img_var = img_var[:n_rows * n_columns, :, :, :]
+        # (rows, rows, h, w, c)
+        shape = [n_rows, n_columns] + list(self.output_shape)
+        imgs = tf.reshape(img_var, shape)
+        stacked_img = []
+        for row in xrange(n_rows):
+            row_img = []
+            for col in xrange(n_columns):
+                row_img.append(imgs[row, col, :, :, :])
+            stacked_img.append(tf.concat(1, row_img))
+        imgs = tf.concat(0, stacked_img)
+        imgs = tf.expand_dims(imgs, 0)
+        tf.summary.image(name=images_name, tensor=imgs,
+                         collections=collections)
+
+
+class RegularizedGAN(GANModel):
+    def __init__(self, latent_spec, **kwargs):
+        """
+        Args:
+            latent_spec (list): List of latent distributions.
+             [(Distribution, bool)]
+             The boolean indicates if the distribution should be used for
+             regularization.
+        """
+        super(RegularizedGAN, self).__init__(**kwargs)
+        d = {'latent_code_influence': self.get_latent_code_influence_g_input}
+        self.sampling_functions.update(d)
+
+        self.latent_spec = latent_spec
+        self.latent_dist = Product([x for x, _ in latent_spec])
+        self.reg_latent_dist = Product([x for x, reg in latent_spec if reg])
+        self.nonreg_latent_dist = Product(
+            [x for x, reg in latent_spec if not reg])
+        assert all(isinstance(x, (Gaussian, Categorical, Bernoulli)) for x in
+                   self.reg_latent_dist.dists)
+
+        self.reg_cont_latent_dist = Product(
+            [x for x in self.reg_latent_dist.dists if isinstance(x, Gaussian)])
+        self.reg_disc_latent_dist = Product(
+            [x for x in self.reg_latent_dist.dists if
+             isinstance(x, (Categorical, Bernoulli))])
+
+        self.build_network()
+
+    def __getstate__(self):
+        pickling_dict = super(RegularizedGAN, self).__getstate__()
+        del pickling_dict['encoder_template']
+        return pickling_dict
+
+    def g_input(self, batch_size=None):
+        if batch_size is None:
+            batch_size = self.batch_size
+        return self.latent_dist.sample_prior(batch_size)
 
     def get_reg_dist_info(self, x_var):
         reg_dist_flat = self.encoder_template.construct(input=x_var)
@@ -134,7 +233,7 @@ class RegularizedGAN(GANModel):
         """ Return the variables with distribution bool == True (concatenated). """
         ret = []
         if z_var is None:
-            z_var = self.g_input
+            z_var = self.g_input()
         for (_, reg_i), z_i in zip(self.latent_spec, self.latent_dist.split_var(z_var)):
             if reg_i:
                 ret.append(z_i)
@@ -191,84 +290,17 @@ class RegularizedGAN(GANModel):
                 nonreg_idx += 1
         return self.latent_dist.join_dist_infos(ret)
 
-    def add_images_to_summary(self, x_dist_flat, images_name,
-                              collections=None, n_rows=10, n_columns=10):
-        x_dist_info = self.output_dist.activate_dist(x_dist_flat)
-
-        # just take the mean image
-        if isinstance(self.output_dist, Bernoulli):
-            img_var = x_dist_info["p"]
-        elif isinstance(self.output_dist, Gaussian):
-            img_var = x_dist_info["mean"]
-        else:
-            raise NotImplementedError
-        img_var = self.dataset.inverse_transform(img_var)
-        # (n, h, w, c)
-        img_var = tf.reshape(img_var, [self.batch_size] + list(self.image_shape))
-        img_var = img_var[:n_rows * n_columns, :, :, :]
-        # (rows, rows, h, w, c)
-        shape = [n_rows, n_columns] + list(self.image_shape)
-        imgs = tf.reshape(img_var, shape)
-        stacked_img = []
-        for row in xrange(n_rows):
-            row_img = []
-            for col in xrange(n_columns):
-                row_img.append(imgs[row, col, :, :, :])
-            stacked_img.append(tf.concat(1, row_img))
-        imgs = tf.concat(0, stacked_img)
-        imgs = tf.expand_dims(imgs, 0)
-        tf.summary.image(name=images_name, tensor=imgs,
-                         collections=collections)
-
-    def get_test_samples(self, sess, z_tensor, images_tensor, sampling_type,
-                         collections=None, min_continuous=-2.,
-                         max_continuous=2.):
-        if collections is None:
-            collections = ['samples']
-        z_vars_and_names = make_list(self.get_z_var(sampling_type,
-                                                    min_continuous,
-                                                    max_continuous))
-        for z_var, name in z_vars_and_names:
-            feed_dict = {z_tensor.name: z_var}
-            x_dist_flat = sess.run(images_tensor, feed_dict=feed_dict)
-            self.add_images_to_summary(x_dist_flat, name,
-                                       collections=collections)
-
-    def get_train_samples(self, collections=None):
+    def get_train_g_input_value(self):
         if len(self.reg_latent_dist.dists) > 0:
             sampling_type = 'latent_code_influence'
         else:
             sampling_type = 'random'
-        z_vars_and_names = make_list(self.get_z_var(sampling_type))
-        for z_var, name in z_vars_and_names:
-            x_dist_flat = self.get_x_dist_flat(z_var)
-            self.add_images_to_summary(x_dist_flat, name, collections)
+        g_inputs_and_names = make_list(self.get_g_input_value(sampling_type))
+        return g_inputs_and_names
 
-    def get_z_var(self, sampling_type, min_continuous=-1., max_continuous=1.):
-        """
-        Args:
-            sampling_type (str): The type of z_var to get
-        """
-        if sampling_type == 'random':
-            return self.get_random_z_var()
-        elif sampling_type == 'latent_code_influence':
-            return self.get_latent_code_influence_z_var(
-                min_continuous=min_continuous,
-                max_continuous=max_continuous)
-        elif sampling_type == 'linear_interpolation':
-            return self.get_linear_interpolation_z_var()
-        else:
-            raise NotImplementedError
-
-    def get_random_z_var(self):
-        with tf.Session():
-            # (n, d)
-            z_var = self.latent_dist.sample_prior(self.batch_size).eval()
-        return z_var, 'samples'
-
-    def get_latent_code_influence_z_var(self, n_samples=10, n_variations=10,
-                                        min_continuous=-1.,
-                                        max_continuous=1.):
+    def get_latent_code_influence_g_input(self, n_samples=10, n_variations=10,
+                                          min_continuous=-2.,
+                                          max_continuous=2.):
         """
         Args:
             n_samples (int): The number of different samples (n_columns).
@@ -347,28 +379,13 @@ class RegularizedGAN(GANModel):
             z_vars_and_names.append((z_var, name))
         return z_vars_and_names
 
-    def get_linear_interpolation_z_var(self, n_samples=10, n_variations=10):
-        with tf.Session():
-            n = n_samples * n_variations
-            all_z_start = self.latent_dist.sample_prior(n_samples)
-            all_z_end = self.latent_dist.sample_prior(n_samples)
-            coefficients = np.linspace(start=0, stop=1, num=n_variations)
-            z_var = []
-            for z_start, z_end in zip(all_z_start.eval(), all_z_end.eval()):
-                for coeff in coefficients:
-                    z_var.append(coeff * z_start + (1 - coeff) * z_end)
-            other = self.latent_dist.sample_prior(self.batch_size - n).eval()
-            z_var = np.concatenate([z_var, other], axis=0)
-            z_var = np.asarray(z_var, dtype=np.float32)
-            return z_var, 'linear_interpolations'
-
 
 class MNISTInfoGAN(RegularizedGAN):
     def build_network(self):
         with tf.variable_scope("d_net"):
             shared_template = \
                 (pt.template("input").
-                 reshape([-1] + list(self.image_shape)).
+                 reshape([-1] + list(self.output_shape)).
                  custom_conv2d(64, k_h=4, k_w=4).
                  apply(leaky_rectify).
                  custom_conv2d(128, k_h=4, k_w=4).
@@ -392,15 +409,15 @@ class MNISTInfoGAN(RegularizedGAN):
                  custom_fully_connected(1024).
                  fc_batch_norm().
                  apply(tf.nn.relu).
-                 custom_fully_connected(self.image_size / 4 * self.image_size / 4 * 128).
+                 custom_fully_connected(self.output_size / 4 * self.output_size / 4 * 128).
                  fc_batch_norm().
                  apply(tf.nn.relu).
-                 reshape([-1, self.image_size / 4, self.image_size / 4, 128]).
-                 custom_deconv2d([0, self.image_size / 2, self.image_size / 2, 64],
+                 reshape([-1, self.output_size / 4, self.output_size / 4, 128]).
+                 custom_deconv2d([0, self.output_size / 2, self.output_size / 2, 64],
                                  k_h=4, k_w=4).
                  conv_batch_norm().
                  apply(tf.nn.relu).
-                 custom_deconv2d([0] + list(self.image_shape), k_h=4, k_w=4).
+                 custom_deconv2d([0] + list(self.output_shape), k_h=4, k_w=4).
                  flatten())
 
 
@@ -409,7 +426,7 @@ class CelebAInfoGAN(RegularizedGAN):
         with tf.variable_scope("d_net"):
             shared_template = \
                 (pt.template("input").
-                 reshape([-1] + list(self.image_shape)).
+                 reshape([-1] + list(self.output_shape)).
                  custom_conv2d(64, k_h=4, k_w=4).
                  apply(leaky_rectify).
                  custom_conv2d(128, k_h=4, k_w=4).
@@ -430,21 +447,21 @@ class CelebAInfoGAN(RegularizedGAN):
         with tf.variable_scope("g_net"):
             self.generator_template = \
                 (pt.template("input").
-                 custom_fully_connected(self.image_size / 16 * self.image_size / 16 * 448).
+                 custom_fully_connected(self.output_size / 16 * self.output_size / 16 * 448).
                  fc_batch_norm().
                  apply(tf.nn.relu).
-                 reshape([-1, self.image_size / 16, self.image_size / 16, 448]).
-                 custom_deconv2d([0, self.image_size / 8, self.image_size / 8, 256],
+                 reshape([-1, self.output_size / 16, self.output_size / 16, 448]).
+                 custom_deconv2d([0, self.output_size / 8, self.output_size / 8, 256],
                                  k_h=4, k_w=4).
                  conv_batch_norm().
                  apply(tf.nn.relu).
-                 custom_deconv2d([0, self.image_size / 4, self.image_size / 4, 128],
+                 custom_deconv2d([0, self.output_size / 4, self.output_size / 4, 128],
                                  k_h=4, k_w=4).
                  apply(tf.nn.relu).
-                 custom_deconv2d([0, self.image_size / 2, self.image_size / 2, 64],
+                 custom_deconv2d([0, self.output_size / 2, self.output_size / 2, 64],
                                  k_h=4, k_w=4).
                  apply(tf.nn.relu).
-                 custom_deconv2d([0] + list(self.image_shape), k_h=4, k_w=4).
+                 custom_deconv2d([0] + list(self.output_shape), k_h=4, k_w=4).
                  apply(tf.nn.tanh).
                  flatten())
 
@@ -456,7 +473,7 @@ class CIFAR10RegularizedGAN(RegularizedGAN):
         with tf.variable_scope("d_net"):
             shared_template = \
                 (pt.template("input").
-                 reshape([-1] + list(self.image_shape)).
+                 reshape([-1] + list(self.output_shape)).
                  custom_conv2d(96, k_h=3, k_w=3, d_h=1, d_w=1).
                  apply(leaky_rectify).
                  custom_conv2d(96, k_h=3, k_w=3, d_h=1, d_w=1).
@@ -493,15 +510,15 @@ class CIFAR10RegularizedGAN(RegularizedGAN):
         with tf.variable_scope("g_net"):
             self.generator_template = \
                 (pt.template("input").
-                 custom_fully_connected(self.image_size / 4 * self.image_size / 4 * 192).
+                 custom_fully_connected(self.output_size / 4 * self.output_size / 4 * 192).
                  apply(leaky_rectify).
-                 reshape([-1, self.image_size / 4, self.image_size / 4, 192]).
-                 apply(tf.image.resize_nearest_neighbor, [self.image_size / 2, self.image_size / 2]).
+                 reshape([-1, self.output_size / 4, self.output_size / 4, 192]).
+                 apply(tf.image.resize_nearest_neighbor, [self.output_size / 2, self.output_size / 2]).
                  custom_conv2d(96, k_h=5, k_w=5, d_h=1, d_w=1).
                  apply(leaky_rectify).
                  custom_conv2d(96, k_h=5, k_w=5, d_h=1, d_w=1).
                  apply(leaky_rectify).
-                 apply(tf.image.resize_nearest_neighbor, [self.image_size, self.image_size]).
+                 apply(tf.image.resize_nearest_neighbor, [self.output_size, self.output_size]).
                  custom_conv2d(96, k_h=5, k_w=5, d_h=1, d_w=1).
                  apply(leaky_rectify).
                  custom_conv2d(3, k_h=5, k_w=5, d_h=1, d_w=1).  # BUG
@@ -514,7 +531,7 @@ class LSUN_DCGAN(RegularizedGAN):
         with tf.variable_scope("d_net"):
             shared_template = \
                 (pt.template("input").
-                 reshape([-1] + list(self.image_shape)).
+                 reshape([-1] + list(self.output_shape)).
                  custom_conv2d(128, k_h=5, k_w=5).
                  conv_batch_norm().
                  apply(leaky_rectify).
@@ -536,19 +553,19 @@ class LSUN_DCGAN(RegularizedGAN):
         with tf.variable_scope("g_net"):
             self.generator_template = \
                 (pt.template("input").
-                 custom_fully_connected(512 * self.image_size / 8 * self.image_size / 8).
+                 custom_fully_connected(512 * self.output_size / 8 * self.output_size / 8).
                  fc_batch_norm().
                  apply(tf.nn.relu).
-                 reshape([-1, 512, self.image_size / 8, self.image_size / 8]).
-                 custom_deconv2d([0, self.image_size / 4, self.image_size / 4, 256],
+                 reshape([-1, 512, self.output_size / 8, self.output_size / 8]).
+                 custom_deconv2d([0, self.output_size / 4, self.output_size / 4, 256],
                                  k_h=5, k_w=5).
                  conv_batch_norm().
                  apply(tf.nn.relu).
-                 custom_deconv2d([0, self.image_size / 2, self.image_size / 2, 128],
+                 custom_deconv2d([0, self.output_size / 2, self.output_size / 2, 128],
                                  k_h=5, k_w=5).
                  conv_batch_norm().
                  apply(tf.nn.relu).
-                 custom_deconv2d([0] + list(self.image_shape),
+                 custom_deconv2d([0] + list(self.output_shape),
                                  k_h=5, k_w=5).
                  apply(tf.nn.tanh).
                  flatten())
@@ -559,7 +576,7 @@ class CelebA_DCGAN_carpedm20(RegularizedGAN):
         with tf.variable_scope("d_net"):
             shared_template = \
                 (pt.template("input").
-                 reshape([-1] + list(self.image_shape)).
+                 reshape([-1] + list(self.output_shape)).
                  custom_conv2d(64, k_h=5, k_w=5).
                  conv_batch_norm().
                  apply(leaky_rectify).
@@ -584,19 +601,19 @@ class CelebA_DCGAN_carpedm20(RegularizedGAN):
         with tf.variable_scope("g_net"):
             self.generator_template = \
                 (pt.template("input").
-                 custom_fully_connected(512 * self.image_size / 8 * self.image_size / 8).
+                 custom_fully_connected(512 * self.output_size / 8 * self.output_size / 8).
                  fc_batch_norm().
                  apply(tf.nn.relu).
-                 reshape([-1, 512, self.image_size / 8, self.image_size / 8]).
-                 custom_deconv2d([0, self.image_size / 4, self.image_size / 4, 256],
+                 reshape([-1, 512, self.output_size / 8, self.output_size / 8]).
+                 custom_deconv2d([0, self.output_size / 4, self.output_size / 4, 256],
                                  k_h=5, k_w=5).
                  conv_batch_norm().
                  apply(tf.nn.relu).
-                 custom_deconv2d([0, self.image_size / 2, self.image_size / 2, 128],
+                 custom_deconv2d([0, self.output_size / 2, self.output_size / 2, 128],
                                  k_h=5, k_w=5).
                  conv_batch_norm().
                  apply(tf.nn.relu).
-                 custom_deconv2d([0] + list(self.image_shape),
+                 custom_deconv2d([0] + list(self.output_shape),
                                  k_h=5, k_w=5).
                  apply(tf.nn.tanh).
                  flatten())

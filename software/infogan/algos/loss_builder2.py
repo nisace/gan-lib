@@ -110,7 +110,7 @@ class LossBuilder(AbstractLossBuilder):
             self.d_loss = self.loss.get_d_loss(real_d, fake_d)
             self.g_loss = self.loss.get_g_loss(fake_d)
 
-        tf.add_to_collection("z_var", self.model.g_input)
+        tf.add_to_collection("z_var", self.model.g_input())
         tf.add_to_collection("x_dist_flat", x_dist_flat)
 
     def add_train_samples_to_summary(self):
@@ -125,7 +125,7 @@ class GANLossBuilder(LossBuilder):
 
     def get_d_feed_dict(self):
         x, _ = self.dataset.train.next_batch(self.batch_size)
-        return {self.model.d_input: x}
+        return {self.model.d_input(): x}
 
 
 class InfoGANLossBuilder(GANLossBuilder):

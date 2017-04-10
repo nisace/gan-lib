@@ -33,7 +33,7 @@ def train(model_name, learning_params):
     trainer = learning_params['trainer']
 
     if model_name == 'mnist_infogan':
-        dataset = MnistDataset()
+        output_dataset = MnistDataset()
         latent_spec = [
             (Uniform(62), False),
             (Categorical(10), True),
@@ -41,25 +41,25 @@ def train(model_name, learning_params):
             (Uniform(1, fix_std=True), True),
         ]
         model = MNISTInfoGAN(
-            output_dist=MeanBernoulli(dataset.image_dim),
-            latent_spec=latent_spec,
             batch_size=batch_size,
-            dataset=dataset
+            output_dataset=output_dataset,
+            output_dist=MeanBernoulli(output_dataset.image_dim),
+            latent_spec=latent_spec,
         )
     elif model_name == 'mnist_wasserstein':
-        dataset = MnistDataset()
+        output_dataset = MnistDataset()
         latent_spec = [
             (Uniform(62), False),
         ]
         model = MNISTInfoGAN(
-            output_dist=MeanBernoulli(dataset.image_dim),
-            latent_spec=latent_spec,
             batch_size=batch_size,
-            dataset=dataset,
+            output_dataset=output_dataset,
+            output_dist=MeanBernoulli(output_dataset.image_dim),
             final_activation=None,
+            latent_spec=latent_spec,
         )
     elif model_name == 'celebA_infogan':
-        dataset = CelebADataset()
+        output_dataset = CelebADataset()
         latent_spec = [
             (Uniform(128), False),
             (Categorical(10), True),
@@ -74,22 +74,22 @@ def train(model_name, learning_params):
             (Categorical(10), True),
         ]
         model = CelebAInfoGAN(
-            output_dist=MeanGaussian(dataset.image_dim, fix_std=True),
-            latent_spec=latent_spec,
             batch_size=batch_size,
-            dataset=dataset,
+            dataset=output_dataset,
+            output_dist=MeanGaussian(output_dataset.image_dim, fix_std=True),
+            latent_spec=latent_spec,
         )
     elif model_name == 'celebA_wasserstein':
-        dataset = CelebADataset()
+        output_dataset = CelebADataset()
         latent_spec = [
             (Uniform(128), False),
         ]
         model = CelebAInfoGAN(
-            output_dist=MeanGaussian(dataset.image_dim, fix_std=True),
-            latent_spec=latent_spec,
             batch_size=batch_size,
-            dataset=dataset,
+            dataset=output_dataset,
+            output_dist=MeanGaussian(output_dataset.image_dim, fix_std=True),
             final_activation=None,
+            latent_spec=latent_spec,
         )
     else:
         raise ValueError('Invalid model_name: {}'.format(model_name))
@@ -97,7 +97,7 @@ def train(model_name, learning_params):
     if trainer == 'infogan':
         algo = InfoGANTrainer(
             model=model,
-            dataset=dataset,
+            dataset=output_dataset,
             batch_size=batch_size,
             exp_name=experiment_name,
             log_dir=log_dir,
@@ -111,7 +111,7 @@ def train(model_name, learning_params):
     elif trainer == 'wasserstein':
         algo = WassersteinGANTrainer(
             model=model,
-            dataset=dataset,
+            dataset=output_dataset,
             batch_size=batch_size,
             exp_name=experiment_name,
             log_dir=log_dir,
@@ -129,7 +129,7 @@ def train(model_name, learning_params):
         loss_builder = InfoGANLossBuilder(
             model=model,
             loss=loss,
-            dataset=dataset,
+            dataset=output_dataset,
             batch_size=batch_size,
             discrim_optimizer=d_optim,
             generator_optimizer=g_optim,

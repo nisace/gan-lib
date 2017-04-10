@@ -16,7 +16,7 @@ class CycleGANLossBuilder(AbstractLossBuilder):
     def get_g_feed_dict(self):
         feed_dict = self.get_d_feed_dict()
         for loss_builder in self.loss_builders:
-            del feed_dict[loss_builder.d_input]
+            del feed_dict[loss_builder.d_input()]
         return feed_dict
 
     def get_d_feed_dict(self):
@@ -26,10 +26,10 @@ class CycleGANLossBuilder(AbstractLossBuilder):
             if d is None:
                 continue
             feed_dict = d.copy() if feed_dict is None else feed_dict.update(d)
-        feed_dict[self.loss_builders[0].g_input] = feed_dict[
-            self.loss_builders[1].d_input]
-        feed_dict[self.loss_builders[1].g_input] = feed_dict[
-            self.loss_builders[0].d_input]
+        feed_dict[self.loss_builders[0].model.g_input()] = feed_dict[
+            self.loss_builders[1].model.d_input()]
+        feed_dict[self.loss_builders[1].model.g_input()] = feed_dict[
+            self.loss_builders[0].model.d_input()]
         return feed_dict
 
     def init_loss(self):
@@ -44,7 +44,7 @@ class CycleGANLossBuilder(AbstractLossBuilder):
         def get_sub_cycle_loss(model_1, model_2):
             fake_x_1 = model_1.generate()
             fake_x_2 = model_2.generate(fake_x_1)
-            x_2 = model_1.g_input
+            x_2 = model_1.g_input()
             return tf.reduce_sum(tf.abs(fake_x_2 - x_2))
 
         cycle_loss = get_sub_cycle_loss(self.loss_builders[0].model,
