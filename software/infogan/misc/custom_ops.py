@@ -12,15 +12,28 @@ class conv_norm(pt.VarStoreMethod):
         self.ema = tf.train.ExponentialMovingAverage(decay=0.9)
 
         shape = input_layer.shape
-        shp = in_dim or shape[-1]
+        shp = [shape[i] for i in range(len(shape)) if i not in self.moment_axes]
+        if in_dim is not None:
+            shp[-1] = in_dim
+        # shp = in_dim or shape[-1]
+        print('input_layer.shape: {}'.format(shape))
+        print(type(shape))
         with tf.variable_scope(tf.get_variable_scope(), reuse=False) as scope:
-            self.gamma = self.variable("gamma", [shp], init=tf.random_normal_initializer(1., 0.02))
-            self.beta = self.variable("beta", [shp], init=tf.constant_initializer(0.))
+            self.gamma = self.variable("gamma", [shp[-1]], init=tf.random_normal_initializer(1., 0.02))
+            self.beta = self.variable("beta", [shp[-1]], init=tf.constant_initializer(0.))
 
             self.mean, self.variance = tf.nn.moments(input_layer.tensor, self.moment_axes)
+            reshape = [d if i not in self.moment_axes else 1 for i, d in enumerate(shape)]
+            self.mean = tf.reshape(self.mean, reshape)
+            self.variance = tf.reshape(self.variance, reshape)
             # sigh...tf's shape system is so..
-            self.mean.set_shape((shp,))
-            self.variance.set_shape((shp,))
+            # print('mean shape {}'.format(self.mean.get_shape()))
+            # self.mean.set_shape(shp)
+            # print(type(self.mean))
+            # print('mean shape {}'.format(self.mean.get_shape()))
+            # self.variance.set_shape(shp)
+            # self.mean.set_shape((shp,))
+            # self.variance.set_shape((shp,))
             self.ema_apply_op = self.ema.apply([self.mean, self.variance])
 
             if phase == Phase.train:
@@ -89,7 +102,7 @@ class custom_conv2d(pt.VarStoreMethod):
 class custom_deconv2d(pt.VarStoreMethod):
     def __call__(self, input_layer, output_shape,
                  k_h=5, k_w=5, d_h=2, d_w=2, stddev=0.02,
-                 name="deconv2d"):
+                 name="deconv2d", padding='SAME'):
         output_shape[0] = input_layer.shape[0]
         ts_output_shape = tf.pack(output_shape)
         with tf.variable_scope(name):
@@ -100,12 +113,14 @@ class custom_deconv2d(pt.VarStoreMethod):
             try:
                 deconv = tf.nn.conv2d_transpose(input_layer, w,
                                                 output_shape=ts_output_shape,
-                                                strides=[1, d_h, d_w, 1])
+                                                strides=[1, d_h, d_w, 1],
+                                                padding=padding)
 
             # Support for versions of TensorFlow before 0.7.0
             except AttributeError:
                 deconv = tf.nn.deconv2d(input_layer, w, output_shape=ts_output_shape,
-                                        strides=[1, d_h, d_w, 1])
+                                        strides=[1, d_h, d_w, 1],
+                                        padding=padding)
 
             biases = self.variable('biases', [output_shape[-1]], init=tf.constant_initializer(0.0))
             deconv = tf.reshape(tf.nn.bias_add(deconv, biases), [-1] + output_shape[1:])
@@ -131,3 +146,38 @@ class custom_fully_connected(pt.VarStoreMethod):
                 return input_layer.with_tensor(tf.matmul(input_, matrix) + bias, parameters=self.vars)
         except Exception:
             import ipdb; ipdb.set_trace()
+
+
+@pt.Register
+class custom_residual(pt.VarStoreMethod):
+    def __call__(self, input_layer, paddings, mode, func, *args, **kwargs):
+        return input_layer.apply(tf.pad, paddings=paddings, mode=mode). \
+                custom_conv2d(128, k_h=3, k_w=3, d_h=1, d_w=1, padding='VALID'). \
+                conv_instance_norm(). \
+                apply(tf.nn.relu). \
+                apply(tf.pad, paddings=paddings, mode=mode). \
+                custom_conv2d(128, k_h=3, k_w=3, d_h=1, d_w=1, padding='VALID'). \
+                conv_instance_norm(). \
+                apply(tf.add, input_layer).tensor
+
+        # out = input_layer.apply(tf.pad, paddings=paddings, mode=mode)
+        # out = out.apply(func, *args, **kwargs)
+        # out = out.apply(conv_instance_norm)
+        # out = out.apply(tf.nn.relu)
+        #
+        # out = out.apply(tf.pad, paddings=paddings, mode=mode)
+        # out = out.apply(func, *args, **kwargs)
+        # out = out.apply(conv_instance_norm)
+        # out = out.apply(tf.add, input_layer)
+
+        # out = tf.pad(input_layer, paddings=paddings, mode=mode)
+        # out = func(out, *args, **kwargs)
+        # out = conv_instance_norm(out)
+        # out = out.apply(tf.nn.relu)
+        #
+        # out = tf.pad(out, paddings=paddings, mode=mode)
+        # out = func(out, *args, **kwargs)
+        # out = conv_instance_norm(out)
+        # out = out + input_layer
+
+        return out

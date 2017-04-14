@@ -4,12 +4,15 @@ import tensorflow as tf
 import os
 
 from infogan.algos import trainer2
+from infogan.algos.cycle_gan_loss_builder import CycleGANLossBuilder
 from infogan.algos.infogan_trainer import InfoGANTrainer, WassersteinGANTrainer
 from infogan.algos.loss import GANLoss
-from infogan.algos.loss_builder2 import InfoGANLossBuilder
-from infogan.misc.datasets import MnistDataset, CelebADataset
+from infogan.algos.loss_builder2 import InfoGANLossBuilder, GANLossBuilder
+from infogan.misc.datasets import MnistDataset, CelebADataset, \
+    HorseOrZebraDataset
 from infogan.misc.distributions import Uniform, Categorical, MeanBernoulli, \
     MeanGaussian
+from infogan.models.data2data_gan import Horse2Zebra_CycleGAN
 from infogan.models.regularized_gan import MNISTInfoGAN, \
     CelebAInfoGAN
 from utils.date_time_utils import get_timestamp
@@ -91,6 +94,25 @@ def train(model_name, learning_params):
             final_activation=None,
             latent_spec=latent_spec,
         )
+    elif model_name == 'horse_zebra':
+        horse_dataset = HorseOrZebraDataset('horse')
+        zebra_dataset = HorseOrZebraDataset('zebra')
+        horse2zebra_model = Horse2Zebra_CycleGAN(
+            input_dataset=horse_dataset,
+            batch_size=batch_size,
+            output_dataset=zebra_dataset,
+            output_dist=MeanGaussian(zebra_dataset.image_dim, fix_std=True),
+            final_activation=None,
+            scope_suffix='_horse2zebra',
+        )
+        zebra2horse_model = Horse2Zebra_CycleGAN(
+            input_dataset=zebra_dataset,
+            batch_size=batch_size,
+            output_dataset=horse_dataset,
+            output_dist=MeanGaussian(zebra_dataset.image_dim, fix_std=True),
+            final_activation=None,
+            scope_suffix='_zebra2horse',
+        )
     else:
         raise ValueError('Invalid model_name: {}'.format(model_name))
 
@@ -134,6 +156,34 @@ def train(model_name, learning_params):
             discrim_optimizer=d_optim,
             generator_optimizer=g_optim,
         )
+        algo = trainer2.GANTrainer(
+            loss_builder=loss_builder,
+            exp_name=experiment_name,
+            log_dir=log_dir,
+            checkpoint_dir=checkpoint_dir,
+            max_epoch=max_epoch,
+            updates_per_epoch=updates_per_epoch,
+        )
+    elif trainer == 'cycle_gan':
+        d_optim = tf.train.AdamOptimizer(2e-4, beta1=0.5)
+        g_optim = tf.train.AdamOptimizer(1e-3, beta1=0.5)
+        loss = GANLoss()
+        horse2zebra_loss_builder = GANLossBuilder(
+            model=horse2zebra_model,
+            loss=loss,
+            batch_size=batch_size,
+            discrim_optimizer=d_optim,
+            generator_optimizer=g_optim,
+        )
+        zebra2horse_loss_builder = GANLossBuilder(
+            model=zebra2horse_model,
+            loss=loss,
+            batch_size=batch_size,
+            discrim_optimizer=d_optim,
+            generator_optimizer=g_optim,
+        )
+        loss_builders = [horse2zebra_loss_builder, zebra2horse_loss_builder]
+        loss_builder = CycleGANLossBuilder(loss_builders)
         algo = trainer2.GANTrainer(
             loss_builder=loss_builder,
             exp_name=experiment_name,

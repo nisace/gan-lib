@@ -9,7 +9,7 @@ from utils.python_utils import make_list
 
 class GANModel(object):
     def __init__(self, batch_size, output_dataset, output_dist,
-                 final_activation=tf.nn.sigmoid):
+                 final_activation=tf.nn.sigmoid, scope_suffix=''):
         """
         Args:
             batch_size (int): The batch size
@@ -23,10 +23,17 @@ class GANModel(object):
         self.output_size = self.output_shape[0]
         self.output_dist = output_dist
         self.final_activation = final_activation
+
         self.sampling_functions = {
             'random': self.get_random_g_input,
             'linear_interpolation': self.get_linear_interpolation_g_input,
         }
+        self.generator_template = None
+        self.encoder_template = None
+        self.discriminator_template = None
+        self._x_dist_flat = None
+
+        self.build_network(scope_suffix)
 
     def __getstate__(self):
         pickling_dict = self.__dict__.copy()
@@ -44,24 +51,39 @@ class GANModel(object):
     def g_input(self, batch_size=None):
         raise NotImplementedError
 
+    def get_g_feed_dict(self):
+        raise NotImplementedError
+
     def d_input(self, batch_size=None):
         if batch_size is None:
             batch_size = self.batch_size
         d_input_shape = [batch_size, self.output_dataset.image_dim]
         return tf.placeholder(tf.float32, d_input_shape)
 
+    def get_d_feed_dict(self):
+        x, _ = self.output_dataset.train.next_batch(self.batch_size)
+        return {self.d_input(): x}
+
+    @property
+    def x_dist_flat(self):
+        if self._x_dist_flat is None:
+            self._x_dist_flat = self.generator_template.construct(input=self.g_input())
+        return self._x_dist_flat
+
     # TODO: add decorator to manage default z_var=self.g_input
     def generate(self, g_input=None):
         if g_input is None:
-            g_input = self.g_input()
-        x_dist_flat = self.generator_template.construct(input=g_input)
+            x_dist_flat = self.x_dist_flat
+        else:
+            x_dist_flat = self.generator_template.construct(input=g_input)
         x_dist_info = self.output_dist.activate_dist(x_dist_flat)
         return self.output_dist.sample(x_dist_info)
 
     def get_x_dist_flat(self, g_input=None):
         if g_input is None:
-            g_input = self.g_input()
-        return self.generator_template.construct(input=g_input)
+            return self.x_dist_flat
+        else:
+            return self.generator_template.construct(input=g_input)
 
     def discriminate(self, d_input=None):
         if d_input is None:
@@ -109,7 +131,7 @@ class GANModel(object):
         with tf.Session():
             # (n, d)
             # TODO: is eval() required? If not, refactor.
-            z_var = self.g_input.eval()
+            z_var = self.g_input().eval()
         return z_var, 'samples'
 
     def get_linear_interpolation_g_input(self, n_samples=10, n_variations=10):
@@ -166,9 +188,6 @@ class RegularizedGAN(GANModel):
              The boolean indicates if the distribution should be used for
              regularization.
         """
-        super(RegularizedGAN, self).__init__(**kwargs)
-        d = {'latent_code_influence': self.get_latent_code_influence_g_input}
-        self.sampling_functions.update(d)
 
         self.latent_spec = latent_spec
         self.latent_dist = Product([x for x, _ in latent_spec])
@@ -184,7 +203,9 @@ class RegularizedGAN(GANModel):
             [x for x in self.reg_latent_dist.dists if
              isinstance(x, (Categorical, Bernoulli))])
 
-        self.build_network()
+        super(RegularizedGAN, self).__init__(**kwargs)
+        d = {'latent_code_influence': self.get_latent_code_influence_g_input}
+        self.sampling_functions.update(d)
 
     def __getstate__(self):
         pickling_dict = super(RegularizedGAN, self).__getstate__()
@@ -195,6 +216,9 @@ class RegularizedGAN(GANModel):
         if batch_size is None:
             batch_size = self.batch_size
         return self.latent_dist.sample_prior(batch_size)
+
+    def get_g_feed_dict(self):
+        return None
 
     def get_reg_dist_info(self, x_var):
         reg_dist_flat = self.encoder_template.construct(input=x_var)

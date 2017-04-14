@@ -1,7 +1,6 @@
 import prettytensor as pt
 import tensorflow as tf
 
-from infogan.models.regularized_gan import RegularizedGAN
 from utils.python_utils import make_list
 
 TINY = 1e-8
@@ -70,27 +69,29 @@ class AbstractLossBuilder(object):
                                              var_list=g_vars)
 
 
-class LossBuilder(AbstractLossBuilder):
-    def __init__(self,
-                 model,
-                 loss,
-                 dataset,
-                 batch_size,
-                 discrim_optimizer,
-                 generator_optimizer,
-                 ):
+class GANLossBuilder(AbstractLossBuilder):
+    def __init__(self, model, loss, batch_size, discrim_optimizer,
+                 generator_optimizer):
         """
-        :type model: RegularizedGAN
+        :type model: GANModel
         """
-        self.model = model
         self.loss = loss
-        self.dataset = dataset
         self.batch_size = batch_size
         self.g_optimizer = generator_optimizer
         self.d_optimizer = discrim_optimizer
 
         self.fake_x = None
-        super(LossBuilder, self).__init__(models=[model])
+        super(GANLossBuilder, self).__init__(models=[model])
+
+    @property
+    def model(self):
+        return self.models[0]
+
+    def get_g_feed_dict(self):
+        return self.model.get_g_feed_dict()
+
+    def get_d_feed_dict(self):
+        return self.model.get_d_feed_dict()
 
     def init_loss(self):
         with pt.defaults_scope(phase=pt.Phase.train):
@@ -117,15 +118,6 @@ class LossBuilder(AbstractLossBuilder):
         with pt.defaults_scope(phase=pt.Phase.test):
             with tf.variable_scope("train_samples", reuse=True):
                 self.model.get_train_samples()
-
-
-class GANLossBuilder(LossBuilder):
-    def get_g_feed_dict(self):
-        return None
-
-    def get_d_feed_dict(self):
-        x, _ = self.dataset.train.next_batch(self.batch_size)
-        return {self.model.d_input(): x}
 
 
 class InfoGANLossBuilder(GANLossBuilder):

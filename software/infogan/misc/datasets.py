@@ -201,6 +201,8 @@ class HorseOrZebraDataset(object):
         self.dtype = dtype
         self.train = HorseOrZebraDatasetIterator(self.images_paths('train'))
         self.test = HorseOrZebraDatasetIterator(self.images_paths('test'))
+        self.image_dim = 256 * 256 * 3
+        self.image_shape = (256, 256, 3)
 
     def images_paths(self, set):
         origin = 'https://people.eecs.berkeley.edu/~taesung_park/CycleGAN/datasets/horse2zebra.zip'
