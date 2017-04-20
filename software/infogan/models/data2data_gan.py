@@ -12,15 +12,19 @@ class Data2DataGAN(GANModel):
         self.input_size = self.input_shape[0]
         super(Data2DataGAN, self).__init__(**kwargs)
 
-    def g_input(self, batch_size=None):
-        if batch_size is None:
-            batch_size = self.batch_size
-        d_input_shape = [batch_size, self.input_dataset.image_dim]
-        return tf.placeholder(tf.float32, d_input_shape)
+    def build_g_input(self):
+        g_input_shape = [self.batch_size, self.input_dataset.image_dim]
+        return tf.placeholder(tf.float32, g_input_shape)
+
+    # def g_input(self, batch_size=None):
+    #     if batch_size is None:
+    #         batch_size = self.batch_size
+    #     d_input_shape = [batch_size, self.input_dataset.image_dim]
+    #     return tf.placeholder(tf.float32, d_input_shape)
 
     def get_g_feed_dict(self):
         x, _ = self.input_dataset.train.next_batch(self.batch_size)
-        return {self.g_input(): x}
+        return {self.g_input: x}
 
 
 class Horse2Zebra_CycleGAN(Data2DataGAN):

@@ -10,43 +10,49 @@ class conv_norm(pt.VarStoreMethod):
     def __call__(self, input_layer, epsilon=1e-5, momentum=0.1, name="batch_norm",
                  in_dim=None, phase=Phase.train):
         self.ema = tf.train.ExponentialMovingAverage(decay=0.9)
-
+        print('conv_norm')
         shape = input_layer.shape
         shp = [shape[i] for i in range(len(shape)) if i not in self.moment_axes]
         if in_dim is not None:
             shp[-1] = in_dim
         # shp = in_dim or shape[-1]
-        print('input_layer.shape: {}'.format(shape))
-        print(type(shape))
-        with tf.variable_scope(tf.get_variable_scope(), reuse=False) as scope:
-            self.gamma = self.variable("gamma", [shp[-1]], init=tf.random_normal_initializer(1., 0.02))
-            self.beta = self.variable("beta", [shp[-1]], init=tf.constant_initializer(0.))
+        # print('input_layer.shape: {}'.format(shape))
+        # print(type(shape))
+        # with tf.variable_scope(tf.get_variable_scope()) as scope:
+        # with tf.variable_scope(tf.get_variable_scope(), reuse=False) as scope:
 
-            self.mean, self.variance = tf.nn.moments(input_layer.tensor, self.moment_axes)
-            reshape = [d if i not in self.moment_axes else 1 for i, d in enumerate(shape)]
-            self.mean = tf.reshape(self.mean, reshape)
-            self.variance = tf.reshape(self.variance, reshape)
-            # sigh...tf's shape system is so..
-            # print('mean shape {}'.format(self.mean.get_shape()))
-            # self.mean.set_shape(shp)
-            # print(type(self.mean))
-            # print('mean shape {}'.format(self.mean.get_shape()))
-            # self.variance.set_shape(shp)
-            # self.mean.set_shape((shp,))
-            # self.variance.set_shape((shp,))
+        # print(tf.get_variable_scope().name)
+        # print(tf.get_variable_scope().reuse)
+        self.gamma = self.variable("gamma", [shp[-1]], init=tf.random_normal_initializer(1., 0.02))
+        self.beta = self.variable("beta", [shp[-1]], init=tf.constant_initializer(0.))
+
+        self.mean, self.variance = tf.nn.moments(input_layer.tensor, self.moment_axes)
+        reshape = [d if i not in self.moment_axes else 1 for i, d in enumerate(shape)]
+        self.mean = tf.reshape(self.mean, reshape)
+        self.variance = tf.reshape(self.variance, reshape)
+        # sigh...tf's shape system is so..
+        # print('mean shape {}'.format(self.mean.get_shape()))
+        # self.mean.set_shape(shp)
+        # print(type(self.mean))
+        # print('mean shape {}'.format(self.mean.get_shape()))
+        # self.variance.set_shape(shp)
+        # self.mean.set_shape((shp,))
+        # self.variance.set_shape((shp,))
+
+        with tf.variable_scope(tf.get_variable_scope(), reuse=False) as scope:
             self.ema_apply_op = self.ema.apply([self.mean, self.variance])
 
-            if phase == Phase.train:
-                with tf.control_dependencies([self.ema_apply_op]):
-                    normalized_x = tf.nn.batch_norm_with_global_normalization(
-                        input_layer.tensor, self.mean, self.variance, self.beta, self.gamma, epsilon,
-                        scale_after_normalization=True)
-            else:
+        if phase == Phase.train:
+            with tf.control_dependencies([self.ema_apply_op]):
                 normalized_x = tf.nn.batch_norm_with_global_normalization(
-                    x, self.ema.average(self.mean), self.ema.average(self.variance), self.beta,
-                    self.gamma, epsilon,
+                    input_layer.tensor, self.mean, self.variance, self.beta, self.gamma, epsilon,
                     scale_after_normalization=True)
-            return input_layer.with_tensor(normalized_x, parameters=self.vars)
+        else:
+            normalized_x = tf.nn.batch_norm_with_global_normalization(
+                x, self.ema.average(self.mean), self.ema.average(self.variance), self.beta,
+                self.gamma, epsilon,
+                scale_after_normalization=True)
+        return input_layer.with_tensor(normalized_x, parameters=self.vars)
 
 
 class conv_batch_norm(conv_norm):

@@ -172,18 +172,18 @@ def train(model_name, learning_params):
             model=horse2zebra_model,
             loss=loss,
             batch_size=batch_size,
-            discrim_optimizer=d_optim,
-            generator_optimizer=g_optim,
         )
         zebra2horse_loss_builder = GANLossBuilder(
             model=zebra2horse_model,
             loss=loss,
             batch_size=batch_size,
-            discrim_optimizer=d_optim,
-            generator_optimizer=g_optim,
         )
         loss_builders = [horse2zebra_loss_builder, zebra2horse_loss_builder]
-        loss_builder = CycleGANLossBuilder(loss_builders)
+        loss_builder = CycleGANLossBuilder(
+            loss_builders,
+            g_optimizer=g_optim,
+            d_optimizer=d_optim,
+        )
         algo = trainer2.GANTrainer(
             loss_builder=loss_builder,
             exp_name=experiment_name,

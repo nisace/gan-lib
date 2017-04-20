@@ -12,7 +12,7 @@ DATA_FOLDER = 'data'
 
 
 class DatasetIterator(object):
-    def __init__(self, images, labels=None):
+    def __init__(self, images, labels=None, dtype=np.float32):
         """
         Args:
             images (ndarray): shape (n, ...)
@@ -24,6 +24,7 @@ class DatasetIterator(object):
         self._num_examples = images.shape[0]
         # shuffle on first run
         self._index_in_epoch = self._num_examples
+        self.dtype = dtype
 
     @property
     def images(self):
@@ -183,11 +184,11 @@ class CelebADataset(object):
 
 class HorseOrZebraDatasetIterator(DatasetIterator):
     def transform(self, data):
-        image = imread(data)
+        image = imread(data[0])
         return normalize(image)
 
     def transform_batch(self, batch):
-        return np.array(batch).reshape(-1, 256 * 256 * 3)
+        return np.array(batch, dtype=self.dtype).reshape(-1, 256 * 256 * 3)
 
 
 class HorseOrZebraDataset(object):

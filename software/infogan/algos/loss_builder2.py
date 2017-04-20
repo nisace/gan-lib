@@ -23,8 +23,10 @@ def apply_optimizer(optimizer, losses, var_list, clip_by_value=None,
 
 
 class AbstractLossBuilder(object):
-    def __init__(self, models):
+    def __init__(self, models, g_optimizer=None, d_optimizer=None):
         self.models = make_list(models)
+        self.g_optimizer = g_optimizer
+        self.d_optimizer = d_optimizer
 
         self.d_loss = None
         self.g_loss = None
@@ -70,18 +72,15 @@ class AbstractLossBuilder(object):
 
 
 class GANLossBuilder(AbstractLossBuilder):
-    def __init__(self, model, loss, batch_size, discrim_optimizer,
-                 generator_optimizer):
+    def __init__(self, model, loss, batch_size, **kwargs):
         """
         :type model: GANModel
         """
         self.loss = loss
         self.batch_size = batch_size
-        self.g_optimizer = generator_optimizer
-        self.d_optimizer = discrim_optimizer
 
         self.fake_x = None
-        super(GANLossBuilder, self).__init__(models=[model])
+        super(GANLossBuilder, self).__init__(models=[model], **kwargs)
 
     @property
     def model(self):
@@ -96,10 +95,31 @@ class GANLossBuilder(AbstractLossBuilder):
     def init_loss(self):
         with pt.defaults_scope(phase=pt.Phase.train):
             # (n, d)
-            fake_x = self.model.generate()
+            print('self.model.get_x_dist_flat()')
             x_dist_flat = self.model.get_x_dist_flat()
+            print('self.model.get_x_dist_flat()2')
+            x_dist_flat2 = self.model.get_x_dist_flat()
+            print("x_dist_flat is x_dist_flat2: %s" % (x_dist_flat is x_dist_flat2))
+            # print("\n".join(["Trainable variables"] + [v.name for v in tf.trainable_variables()]))
+            # print("\n".join(["Global variables"] + [v.name for v in tf.global_variables()]))
+            print('self.model.generate()')
+            fake_x = self.model.generate()
+            print(fake_x)
+            print('self.model.generate()2')
+            fake_x_2 = self.model.generate()
+            print(fake_x_2)
+            print(fake_x_2 is fake_x)
+            # print("\n".join(["Trainable variables"] + [v.name for v in tf.trainable_variables()]))
+            # print("\n".join(["Global variables"] + [v.name for v in tf.global_variables()]))
+            print('self.model.get_x_dist_flat()')
+            x_dist_flat = self.model.get_x_dist_flat()
+            # print("\n".join(["Trainable variables"] + [v.name for v in tf.trainable_variables()]))
             # (n,)
+            print('self.model.discriminate()')
             real_d = self.model.discriminate()
+            # print("\n".join(["Trainable variables"] + [v.name for v in tf.trainable_variables()]))
+            # print("\n".join(["Global variables"] + [v.name for v in tf.global_variables()]))
+            print('self.model.discriminate(fake_x)')
             fake_d = self.model.discriminate(fake_x)
 
             self.log_vars.append(("max_real_d", tf.reduce_max(real_d)))
@@ -108,10 +128,11 @@ class GANLossBuilder(AbstractLossBuilder):
             self.log_vars.append(("min_fake_d", tf.reduce_min(fake_d)))
             self.fake_x = fake_x
 
+            print('self.loss.get_d_loss(real_d, fake_d)')
             self.d_loss = self.loss.get_d_loss(real_d, fake_d)
             self.g_loss = self.loss.get_g_loss(fake_d)
 
-        tf.add_to_collection("z_var", self.model.g_input())
+        tf.add_to_collection("z_var", self.model.g_input)
         tf.add_to_collection("x_dist_flat", x_dist_flat)
 
     def add_train_samples_to_summary(self):

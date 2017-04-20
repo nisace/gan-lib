@@ -1,7 +1,10 @@
+from functools import wraps
+
 import prettytensor as pt
 import tensorflow as tf
 import numpy as np
 
+from infogan.algos.graph_input import GraphOutputsManager
 from infogan.misc.custom_ops import leaky_rectify
 from infogan.misc.distributions import Product, Distribution, Gaussian, Categorical, Bernoulli
 from utils.python_utils import make_list
@@ -31,7 +34,14 @@ class GANModel(object):
         self.generator_template = None
         self.encoder_template = None
         self.discriminator_template = None
+
+        self.outputs_managers = {}
+
         self._x_dist_flat = None
+        self._g_input = None
+        self.g_inputs_outputs = {}
+        self._d_input = None
+        self.d_inputs_outputs = {}
 
         self.build_network(scope_suffix)
 
@@ -42,57 +52,106 @@ class GANModel(object):
         del pickling_dict['final_activation']
         return pickling_dict
 
+    def get_outputs_manager(self, input_tensor):
+        default = GraphOutputsManager(input_tensor=input_tensor)
+        return self.outputs_managers.setdefault(input_tensor, default)
+
+    def get_output_tensor(self, input_tensor, function, key=None):
+        manager = self.get_outputs_manager(input_tensor)
+        return manager.get_output_tensor(function, key)
+
     ###########################################################################
     # NETWORK
     ###########################################################################
     def build_network(self):
         raise NotImplementedError
 
-    def g_input(self, batch_size=None):
+    @property
+    def g_input(self):
+        if self._g_input is None:
+            self._g_input = self.build_g_input()
+        return self._g_input
+
+    def build_g_input(self):
         raise NotImplementedError
 
     def get_g_feed_dict(self):
         raise NotImplementedError
 
-    def d_input(self, batch_size=None):
-        if batch_size is None:
-            batch_size = self.batch_size
-        d_input_shape = [batch_size, self.output_dataset.image_dim]
+    @property
+    def d_input(self):
+        if self._d_input is None:
+            self._d_input = self.build_d_input()
+        return self._d_input
+
+    def build_d_input(self):
+        d_input_shape = [self.batch_size, self.output_dataset.image_dim]
         return tf.placeholder(tf.float32, d_input_shape)
 
     def get_d_feed_dict(self):
         x, _ = self.output_dataset.train.next_batch(self.batch_size)
-        return {self.d_input(): x}
+        return {self.d_input: x}
 
-    @property
-    def x_dist_flat(self):
-        if self._x_dist_flat is None:
-            self._x_dist_flat = self.generator_template.construct(input=self.g_input())
-        return self._x_dist_flat
+    # @property
+    # def x_dist_flat(self):
+    #     if self._x_dist_flat is None:
+    #         print("x_dist_flat")
+    #         i = self.g_input()
+    #         self._x_dist_flat = self.generator_template.construct(input=i)
+    #         # self._x_dist_flat = self.generator_template.construct(input=self.g_input)
+    #     return self._x_dist_flat
 
-    # TODO: add decorator to manage default z_var=self.g_input
     def generate(self, g_input=None):
-        if g_input is None:
-            x_dist_flat = self.x_dist_flat
-        else:
-            x_dist_flat = self.generator_template.construct(input=g_input)
-        x_dist_info = self.output_dist.activate_dist(x_dist_flat)
+        x_dist_flat = self.get_x_dist_flat(g_input)
+        x_dist_info = self.get_output_tensor(x_dist_flat, self.output_dist.activate_dist)
         return self.output_dist.sample(x_dist_info)
+        # return self.get_output_tensor(x_dist_info, self.output_dist.sample)
+
+    # # TODO: add decorator to manage default z_var=self.g_input
+    # def generate(self, g_input=None):
+    #     x_dist_flat = self.get_x_dist_flat(g_input)
+    #     x_dist_info = self.output_dist.activate_dist(x_dist_flat)
+    #     return self.output_dist.sample(x_dist_info)
 
     def get_x_dist_flat(self, g_input=None):
-        if g_input is None:
-            return self.x_dist_flat
-        else:
-            return self.generator_template.construct(input=g_input)
+        g_input = g_input or self.g_input
+        function = self.generator_template.construct
+        return self.get_output_tensor(g_input, function, key='input')
+
+    # def get_x_dist_flat(self, g_input=None):
+    #     g_input = g_input or self.g_input
+    #     # if g_input in self.g_inputs_outputs.keys():
+    #     #     return self.g_inputs_outputs[g_input]
+    #     x_dist_flat = self.generator_template.construct(input=g_input)
+    #     self.g_inputs_outputs[g_input] = x_dist_flat
+    #     return x_dist_flat
+
+    # def get_x_dist_flat(self, g_input=None):
+    #     if g_input is None:
+    #         return self.x_dist_flat
+    #     else:
+    #         return self.generator_template.construct(input=g_input)
 
     def discriminate(self, d_input=None):
-        if d_input is None:
-            d_input = self.d_input()
+        d_input = d_input or self.d_input
+        if d_input in self.d_inputs_outputs.keys():
+            return self.d_inputs_outputs[d_input]
         d_out = self.discriminator_template.construct(input=d_input)
         if self.final_activation is not None:
-            return self.final_activation(d_out[:, 0])
+            d_out = self.final_activation(d_out[:, 0])
         else:
-            return d_out[:, 0]
+            d_out = d_out[:, 0]
+        self.d_inputs_outputs[d_input] = d_out
+        return d_out
+
+    # def discriminate(self, d_input=None):
+    #     if d_input is None:
+    #         d_input = self.d_input()
+    #     d_out = self.discriminator_template.construct(input=d_input)
+    #     if self.final_activation is not None:
+    #         return self.final_activation(d_out[:, 0])
+    #     else:
+    #         return d_out[:, 0]
 
     ###########################################################################
     # SAMPLING
@@ -212,12 +271,20 @@ class RegularizedGAN(GANModel):
         del pickling_dict['encoder_template']
         return pickling_dict
 
-    def g_input(self, batch_size=None):
+    def build_g_input(self):
+        g_input_shape = [self.batch_size, self.latent_dist.dim]
+        return tf.placeholder(tf.float32, g_input_shape)
+
+    def build_g_input(self, batch_size=None):
+    # def g_input(self, batch_size=None):
+        # return place holder
         if batch_size is None:
             batch_size = self.batch_size
+        print("building g_input")
         return self.latent_dist.sample_prior(batch_size)
 
     def get_g_feed_dict(self):
+        # return self.latent_dist.sample_prior(batch_size)
         return None
 
     def get_reg_dist_info(self, x_var):
