@@ -165,9 +165,12 @@ class GANModel(object):
 
     def get_train_samples(self, collections=None):
         z_vars_and_names = make_list(self.get_train_g_input_value())
-        for z_var, name in z_vars_and_names:
-            x_dist_flat = self.get_x_dist_flat(z_var)
-            self.add_images_to_summary(x_dist_flat, name, collections)
+        for feed_dict, name in z_vars_and_names:
+            # with tf.Session() as sess:
+            #     x_dist_flat = sess.run(self.get_x_dist_flat(), feed_dict)
+            x_dist_flat = self.get_x_dist_flat()
+            # x_dist_flat = self.get_x_dist_flat(z_var)
+            self.add_images_to_summary(x_dist_flat, name, collections, n_rows=1, n_columns=1)
 
     def get_test_samples(self, sess, z_tensor, images_tensor, sampling_type,
                          collections=None, **kwargs):
@@ -191,11 +194,12 @@ class GANModel(object):
         return func(**kwargs)
 
     def get_random_g_input(self):
-        with tf.Session():
-            # (n, d)
-            # TODO: is eval() required? If not, refactor.
-            z_var = self.g_input.eval()
-        return z_var, 'samples'
+        return self.get_g_feed_dict(), 'samples'
+        # with tf.Session():
+        #     # (n, d)
+        #     # TODO: is eval() required? If not, refactor.
+        #     z_var = self.g_input.eval()
+        # return z_var, 'samples'
 
     def get_linear_interpolation_g_input(self, n_samples=10, n_variations=10):
         with tf.Session():

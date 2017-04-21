@@ -102,7 +102,7 @@ def train(model_name, learning_params):
             batch_size=batch_size,
             output_dataset=zebra_dataset,
             output_dist=MeanGaussian(zebra_dataset.image_dim, fix_std=True),
-            final_activation=tf.nn.sigmoid,
+            final_activation=None,
             scope_suffix='_horse2zebra',
         )
         zebra2horse_model = Horse2Zebra_CycleGAN(
@@ -110,7 +110,7 @@ def train(model_name, learning_params):
             batch_size=batch_size,
             output_dataset=horse_dataset,
             output_dist=MeanGaussian(zebra_dataset.image_dim, fix_std=True),
-            final_activation=tf.nn.sigmoid,
+            final_activation=None,
             scope_suffix='_zebra2horse',
         )
     else:
