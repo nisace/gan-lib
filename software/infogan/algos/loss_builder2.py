@@ -43,12 +43,15 @@ class AbstractLossBuilder(object):
 
     def init_opt(self):
         self.init_loss()
+        self.init_optimizers()
+        self.add_summaries()
+
+    def add_summaries(self):
         self.log_vars.append(("discriminator_loss", self.d_loss))
         self.log_vars.append(("generator_loss", self.g_loss))
-        self.add_train_samples_to_summary()
-        self.init_optimizers()
         for k, v in self.log_vars:
             tf.summary.scalar(name=k, tensor=v)
+        self.add_train_samples_to_summary()
 
     def init_loss(self):
         raise NotImplementedError

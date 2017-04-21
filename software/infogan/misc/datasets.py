@@ -200,10 +200,10 @@ class HorseOrZebraDataset(object):
         assert name in ['horse', 'zebra']
         self.name = 'A' if name == 'horse' else 'B'
         self.dtype = dtype
-        self.train = HorseOrZebraDatasetIterator(self.images_paths('train'))
-        self.test = HorseOrZebraDatasetIterator(self.images_paths('test'))
         self.image_dim = 256 * 256 * 3
         self.image_shape = (256, 256, 3)
+        self.train = HorseOrZebraDatasetIterator(self.images_paths('train'))
+        self.test = HorseOrZebraDatasetIterator(self.images_paths('test'))
 
     def images_paths(self, set):
         origin = 'https://people.eecs.berkeley.edu/~taesung_park/CycleGAN/datasets/horse2zebra.zip'
@@ -213,7 +213,17 @@ class HorseOrZebraDataset(object):
         download(origin, download_path)
         extract_path = extract_all(download_path)
         extract_path = os.path.join(extract_path, set + self.name)
-        return np.array(glob(os.path.join(extract_path, '*.jpg')))
+        images_paths = glob(os.path.join(extract_path, '*.jpg'))
+        final_images_paths = []
+        for image_path in images_paths:
+            image = imread(image_path)
+            if image.shape != self.image_shape:
+                msg = '{} has wrong shape {}. It should be {}. Removing file'
+                print(msg.format(image_path, image.shape, self.image_shape))
+                os.remove(image_path)
+            else:
+                final_images_paths.append(image_path)
+        return np.array(final_images_paths)
 
     def inverse_transform(self, data):
         return data

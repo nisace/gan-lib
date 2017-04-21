@@ -4,4 +4,4 @@ learning_params:
   trainer: cycle_gan
   updates_per_epoch: 100
   max_epoch: 60
-  batch_size: 128
+  batch_size: 1

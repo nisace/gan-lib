@@ -6,7 +6,7 @@ import os
 from infogan.algos import trainer2
 from infogan.algos.cycle_gan_loss_builder import CycleGANLossBuilder
 from infogan.algos.infogan_trainer import InfoGANTrainer, WassersteinGANTrainer
-from infogan.algos.loss import GANLoss
+from infogan.algos.loss import GANLoss, LeastSquaresGANLoss
 from infogan.algos.loss_builder2 import InfoGANLossBuilder, GANLossBuilder
 from infogan.misc.datasets import MnistDataset, CelebADataset, \
     HorseOrZebraDataset
@@ -102,7 +102,7 @@ def train(model_name, learning_params):
             batch_size=batch_size,
             output_dataset=zebra_dataset,
             output_dist=MeanGaussian(zebra_dataset.image_dim, fix_std=True),
-            final_activation=None,
+            final_activation=tf.nn.sigmoid,
             scope_suffix='_horse2zebra',
         )
         zebra2horse_model = Horse2Zebra_CycleGAN(
@@ -110,7 +110,7 @@ def train(model_name, learning_params):
             batch_size=batch_size,
             output_dataset=horse_dataset,
             output_dist=MeanGaussian(zebra_dataset.image_dim, fix_std=True),
-            final_activation=None,
+            final_activation=tf.nn.sigmoid,
             scope_suffix='_zebra2horse',
         )
     else:
@@ -166,8 +166,8 @@ def train(model_name, learning_params):
         )
     elif trainer == 'cycle_gan':
         d_optim = tf.train.AdamOptimizer(2e-4, beta1=0.5)
-        g_optim = tf.train.AdamOptimizer(1e-3, beta1=0.5)
-        loss = GANLoss()
+        g_optim = tf.train.AdamOptimizer(2e-4, beta1=0.5)
+        loss = LeastSquaresGANLoss()
         horse2zebra_loss_builder = GANLossBuilder(
             model=horse2zebra_model,
             loss=loss,

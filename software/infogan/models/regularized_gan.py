@@ -90,7 +90,11 @@ class GANModel(object):
 
     def get_d_feed_dict(self):
         x, _ = self.output_dataset.train.next_batch(self.batch_size)
-        return {self.d_input: x}
+        d_feed_dict = {self.d_input: x}
+        g_feed_dict = self.get_g_feed_dict()
+        if g_feed_dict is not None:
+            d_feed_dict.update(g_feed_dict)
+        return d_feed_dict
 
     # @property
     # def x_dist_flat(self):
@@ -190,7 +194,7 @@ class GANModel(object):
         with tf.Session():
             # (n, d)
             # TODO: is eval() required? If not, refactor.
-            z_var = self.g_input().eval()
+            z_var = self.g_input.eval()
         return z_var, 'samples'
 
     def get_linear_interpolation_g_input(self, n_samples=10, n_variations=10):
