@@ -117,19 +117,39 @@ def train(model_name, learning_params):
         raise ValueError('Invalid model_name: {}'.format(model_name))
 
     if trainer == 'infogan':
-        algo = InfoGANTrainer(
+        d_optim = tf.train.AdamOptimizer(2e-4, beta1=0.5)
+        g_optim = tf.train.AdamOptimizer(1e-3, beta1=0.5)
+        loss = GANLoss()
+        loss_builder = GANLossBuilder(
             model=model,
-            dataset=output_dataset,
+            loss=loss,
             batch_size=batch_size,
+            g_optimizer=g_optim,
+            d_optimizer=d_optim,
+
+        )
+        algo = trainer2.GANTrainer(
+            loss_builder=loss_builder,
             exp_name=experiment_name,
             log_dir=log_dir,
             checkpoint_dir=checkpoint_dir,
             max_epoch=max_epoch,
             updates_per_epoch=updates_per_epoch,
-            info_reg_coeff=1.0,
-            discrim_learning_rate=2e-4,
-            generator_learning_rate=1e-3,
         )
+
+        # algo = InfoGANTrainer(
+        #     model=model,
+        #     dataset=output_dataset,
+        #     batch_size=batch_size,
+        #     exp_name=experiment_name,
+        #     log_dir=log_dir,
+        #     checkpoint_dir=checkpoint_dir,
+        #     max_epoch=max_epoch,
+        #     updates_per_epoch=updates_per_epoch,
+        #     info_reg_coeff=1.0,
+        #     discrim_learning_rate=2e-4,
+        #     generator_learning_rate=1e-3,
+        # )
     elif trainer == 'wasserstein':
         algo = WassersteinGANTrainer(
             model=model,

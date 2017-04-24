@@ -26,6 +26,7 @@ class GANModel(object):
         self.output_size = self.output_shape[0]
         self.output_dist = output_dist
         self.final_activation = final_activation
+        self.scope_suffix = scope_suffix
 
         self.sampling_functions = {
             'random': self.get_random_g_input,
@@ -137,16 +138,24 @@ class GANModel(object):
     #         return self.generator_template.construct(input=g_input)
 
     def discriminate(self, d_input=None):
-        d_input = d_input or self.d_input
-        if d_input in self.d_inputs_outputs.keys():
-            return self.d_inputs_outputs[d_input]
-        d_out = self.discriminator_template.construct(input=d_input)
+        d_input = d_input if d_input is not None else self.d_input
+        function = self.discriminator_template.construct
+        d_out = self.get_output_tensor(d_input, function, key='input')
         if self.final_activation is not None:
-            d_out = self.final_activation(d_out[:, 0])
-        else:
-            d_out = d_out[:, 0]
-        self.d_inputs_outputs[d_input] = d_out
+            d_out = self.final_activation(d_out)
         return d_out
+
+    # def discriminate(self, d_input=None):
+    #     d_input = d_input if d_input is not None else self.d_input
+    #     if d_input in self.d_inputs_outputs.keys():
+    #         return self.d_inputs_outputs[d_input]
+    #     d_out = self.discriminator_template.construct(input=d_input)
+    #     if self.final_activation is not None:
+    #         d_out = self.final_activation(d_out[:, 0])
+    #     else:
+    #         d_out = d_out[:, 0]
+    #     self.d_inputs_outputs[d_input] = d_out
+    #     return d_out
 
     # def discriminate(self, d_input=None):
     #     if d_input is None:
@@ -480,7 +489,7 @@ class RegularizedGAN(GANModel):
 
 
 class MNISTInfoGAN(RegularizedGAN):
-    def build_network(self):
+    def build_network(self, scope):
         with tf.variable_scope("d_net"):
             shared_template = \
                 (pt.template("input").

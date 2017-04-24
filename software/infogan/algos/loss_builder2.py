@@ -62,6 +62,7 @@ class AbstractLossBuilder(object):
     def init_optimizers(self):
         with pt.defaults_scope(phase=pt.Phase.train):
             all_vars = tf.trainable_variables()
+            print("\n".join(["Trainable variables"] + [v.name for v in all_vars]))
             self.d_vars = [var for var in all_vars if var.name.startswith('d_')]
             g_vars = [var for var in all_vars if var.name.startswith('g_')]
 

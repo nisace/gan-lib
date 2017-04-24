@@ -89,7 +89,7 @@ class Horse2Zebra_CycleGAN(Data2DataGAN):
                  conv_instance_norm().
                  apply(tf.nn.relu).
                  apply(tf.pad, [[0, 0], [3, 3], [3, 3], [0, 0]], mode).
-                 custom_conv2d(32, k_h=7, k_w=7, d_h=1, d_w=1, padding='VALID').
+                 custom_conv2d(3, k_h=7, k_w=7, d_h=1, d_w=1, padding='VALID').
                  # conv_instance_norm().
                  # apply(tf.nn.relu).
                  apply(tf.nn.tanh).
