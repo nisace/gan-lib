@@ -51,6 +51,7 @@ class GANModel(object):
         del pickling_dict['discriminator_template']
         del pickling_dict['generator_template']
         del pickling_dict['final_activation']
+        del pickling_dict['sampling_functions']
         return pickling_dict
 
     def get_outputs_manager(self, input_tensor):
@@ -185,7 +186,8 @@ class GANModel(object):
                          collections=None, **kwargs):
         if collections is None:
             collections = ['samples']
-        z_vars_and_names = self.get_g_input_value(sampling_type, **kwargs)
+        z_vars_and_names = self.get_random_g_input()
+        # z_vars_and_names = self.get_g_input_value(sampling_type, **kwargs)
         for z_var, name in make_list(z_vars_and_names):
             feed_dict = {z_tensor.name: z_var}
             x_dist_flat = sess.run(images_tensor, feed_dict=feed_dict)
@@ -225,6 +227,9 @@ class GANModel(object):
             z_var = np.asarray(z_var, dtype=np.float32)
             return z_var, 'linear_interpolations'
 
+    def modify_summary_images(self, images):
+        return images
+
     def add_images_to_summary(self, x_dist_flat, images_name,
                               collections=None, n_rows=10, n_columns=10):
         x_dist_info = self.output_dist.activate_dist(x_dist_flat)
@@ -251,6 +256,7 @@ class GANModel(object):
             stacked_img.append(tf.concat(1, row_img))
         imgs = tf.concat(0, stacked_img)
         imgs = tf.expand_dims(imgs, 0)
+        imgs = self.modify_summary_images(imgs)
         tf.summary.image(name=images_name, tensor=imgs,
                          collections=collections)
 

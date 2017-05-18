@@ -26,6 +26,12 @@ class Data2DataGAN(GANModel):
         x, _ = self.input_dataset.train.next_batch(self.batch_size)
         return {self.g_input: x}
 
+    def modify_summary_images(self, images):
+        shape = [1] + list(self.input_shape)
+        shape[1] *= self.batch_size
+        input_images = tf.reshape(self.g_input, shape)
+        return tf.concat(2, [input_images, images])
+
 
 class Horse2Zebra_CycleGAN(Data2DataGAN):
     def build_network(self, scope_suffix=''):
