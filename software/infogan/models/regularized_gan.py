@@ -29,8 +29,8 @@ class GANModel(object):
         self.scope_suffix = scope_suffix
 
         self.sampling_functions = {
-            'random': self.get_random_g_input,
-            'linear_interpolation': self.get_linear_interpolation_g_input,
+            'random': 'get_random_g_input',
+            'linear_interpolation': 'get_linear_interpolation_g_input',
         }
         self.generator_template = None
         self.encoder_template = None
@@ -51,7 +51,6 @@ class GANModel(object):
         del pickling_dict['discriminator_template']
         del pickling_dict['generator_template']
         del pickling_dict['final_activation']
-        del pickling_dict['sampling_functions']
         return pickling_dict
 
     def get_outputs_manager(self, input_tensor):
@@ -170,62 +169,65 @@ class GANModel(object):
     ###########################################################################
     # SAMPLING
     ###########################################################################
-    def get_train_g_input_value(self):
-        return make_list(self.get_g_input_value('random'))
+    def get_train_g_input_tensor(self):
+        return make_list(self.get_g_input_tensor('random'))
 
     def get_train_samples(self, collections=None):
-        z_vars_and_names = make_list(self.get_train_g_input_value())
-        for feed_dict, name in z_vars_and_names:
+        g_input_tensors_and_names = make_list(self.get_train_g_input_tensor())
+        for g_input_tensor, name in g_input_tensors_and_names:
             # with tf.Session() as sess:
             #     x_dist_flat = sess.run(self.get_x_dist_flat(), feed_dict)
-            x_dist_flat = self.get_x_dist_flat()
+            x_dist_flat = self.get_x_dist_flat(g_input_tensor)
             # x_dist_flat = self.get_x_dist_flat(z_var)
-            self.add_images_to_summary(x_dist_flat, name, collections, n_rows=1, n_columns=1)
+            n_rows = min(10, np.floor(np.sqrt(self.batch_size)))
+            n_columns = min(10, np.floor(self.batch_size / n_rows))
+            self.add_images_to_summary(x_dist_flat, name, collections,
+                                       n_rows=n_rows, n_columns=n_columns)
 
     def get_test_samples(self, sess, z_tensor, images_tensor, sampling_type,
                          collections=None, **kwargs):
         if collections is None:
             collections = ['samples']
-        z_vars_and_names = self.get_random_g_input()
+        z_vars_and_names = self.get_random_g_input_tensor()
         # z_vars_and_names = self.get_g_input_value(sampling_type, **kwargs)
         for z_var, name in make_list(z_vars_and_names):
             feed_dict = {z_tensor.name: z_var}
             x_dist_flat = sess.run(images_tensor, feed_dict=feed_dict)
             self.add_images_to_summary(x_dist_flat, name, collections)
 
-    def get_g_input_value(self, sampling_type, **kwargs):
+    def get_g_input_tensor(self, sampling_type, **kwargs):
         """
         Args:
             sampling_type (str): The type of z_var to get
         """
         try:
-            func = self.sampling_functions[sampling_type]
+            func = getattr(self, self.sampling_functions[sampling_type])
         except KeyError:
             raise KeyError('Unknown sampling_type: {}'.format(sampling_type))
         return func(**kwargs)
 
-    def get_random_g_input(self):
-        return self.get_g_feed_dict(), 'samples'
+    def get_random_g_input_tensor(self):
+        return self.g_input, 'samples'
         # with tf.Session():
         #     # (n, d)
         #     # TODO: is eval() required? If not, refactor.
         #     z_var = self.g_input.eval()
         # return z_var, 'samples'
 
-    def get_linear_interpolation_g_input(self, n_samples=10, n_variations=10):
-        with tf.Session():
-            n = n_samples * n_variations
-            all_z_start = self.g_input(n_samples).eval()
-            all_z_end = self.g_input(n_samples).eval()
-            coefficients = np.linspace(start=0, stop=1, num=n_variations)
-            z_var = []
-            for z_start, z_end in zip(all_z_start, all_z_end):
-                for coeff in coefficients:
-                    z_var.append(coeff * z_start + (1 - coeff) * z_end)
-            other = self.g_input(self.batch_size - n).eval()
-            z_var = np.concatenate([z_var, other], axis=0)
-            z_var = np.asarray(z_var, dtype=np.float32)
-            return z_var, 'linear_interpolations'
+    # def get_linear_interpolation_g_input(self, n_samples=10, n_variations=10):
+    #     with tf.Session():
+    #         n = n_samples * n_variations
+    #         all_z_start = self.g_input(n_samples).eval()
+    #         all_z_end = self.g_input(n_samples).eval()
+    #         coefficients = np.linspace(start=0, stop=1, num=n_variations)
+    #         z_var = []
+    #         for z_start, z_end in zip(all_z_start, all_z_end):
+    #             for coeff in coefficients:
+    #                 z_var.append(coeff * z_start + (1 - coeff) * z_end)
+    #         other = self.g_input(self.batch_size - n).eval()
+    #         z_var = np.concatenate([z_var, other], axis=0)
+    #         z_var = np.asarray(z_var, dtype=np.float32)
+    #         return z_var, 'linear_interpolations'
 
     def modify_summary_images(self, images):
         return images
@@ -261,7 +263,25 @@ class GANModel(object):
                          collections=collections)
 
 
-class RegularizedGAN(GANModel):
+class LatentInputGAN(GANModel):
+    def get_linear_interpolation_g_input(self, n_samples=10, n_variations=10):
+        # with tf.Session():
+        n = n_samples * n_variations
+        assert n < self.batch_size
+        all_z_start = self.g_input[:]
+        all_z_end = self.g_input(n_samples).eval()
+        coefficients = np.linspace(start=0, stop=1, num=n_variations)
+        z_var = []
+        for z_start, z_end in zip(all_z_start, all_z_end):
+            for coeff in coefficients:
+                z_var.append(coeff * z_start + (1 - coeff) * z_end)
+        other = self.g_input(self.batch_size - n).eval()
+        z_var = np.concatenate([z_var, other], axis=0)
+        z_var = np.asarray(z_var, dtype=np.float32)
+        return z_var, 'linear_interpolations'
+
+
+class RegularizedGAN(LatentInputGAN):
     def __init__(self, latent_spec, **kwargs):
         """
         Args:
@@ -286,7 +306,7 @@ class RegularizedGAN(GANModel):
              isinstance(x, (Categorical, Bernoulli))])
 
         super(RegularizedGAN, self).__init__(**kwargs)
-        d = {'latent_code_influence': self.get_latent_code_influence_g_input}
+        d = {'latent_code_influence': 'get_latent_code_influence_g_input'}
         self.sampling_functions.update(d)
 
     def __getstate__(self):
@@ -295,16 +315,19 @@ class RegularizedGAN(GANModel):
         return pickling_dict
 
     def build_g_input(self):
-        g_input_shape = [self.batch_size, self.latent_dist.dim]
-        return tf.placeholder(tf.float32, g_input_shape)
+        return self.latent_dist.sample_prior(self.batch_size)
 
-    def build_g_input(self, batch_size=None):
-    # def g_input(self, batch_size=None):
-        # return place holder
-        if batch_size is None:
-            batch_size = self.batch_size
-        print("building g_input")
-        return self.latent_dist.sample_prior(batch_size)
+    # def build_g_input(self):
+    #     g_input_shape = [self.batch_size, self.latent_dist.dim]
+    #     return tf.placeholder(tf.float32, g_input_shape)
+
+    # def build_g_input(self, batch_size=None):
+    # # def g_input(self, batch_size=None):
+    #     # return place holder
+    #     if batch_size is None:
+    #         batch_size = self.batch_size
+    #     print("building g_input")
+    #     return self.latent_dist.sample_prior(batch_size)
 
     def get_g_feed_dict(self):
         # return self.latent_dist.sample_prior(batch_size)
@@ -404,12 +427,12 @@ class RegularizedGAN(GANModel):
                 nonreg_idx += 1
         return self.latent_dist.join_dist_infos(ret)
 
-    def get_train_g_input_value(self):
+    def get_train_g_input_tensor(self):
         if len(self.reg_latent_dist.dists) > 0:
             sampling_type = 'latent_code_influence'
         else:
             sampling_type = 'random'
-        g_inputs_and_names = make_list(self.get_g_input_value(sampling_type))
+        g_inputs_and_names = make_list(self.get_g_input_tensor(sampling_type))
         return g_inputs_and_names
 
     def get_latent_code_influence_g_input(self, n_samples=10, n_variations=10,
