@@ -29,8 +29,10 @@ class GANModel(object):
         self.scope_suffix = scope_suffix
 
         self.sampling_functions = {
-            'random': 'get_random_g_input',
-            'linear_interpolation': 'get_linear_interpolation_g_input',
+            'random': {
+                'tensor': 'get_random_g_input_tensor',
+                'value': 'get_random_g_input_value',
+            },
         }
         self.generator_template = None
         self.encoder_template = None
@@ -55,7 +57,12 @@ class GANModel(object):
 
     def get_outputs_manager(self, input_tensor):
         default = GraphOutputsManager(input_tensor=input_tensor)
-        return self.outputs_managers.setdefault(input_tensor, default)
+        if isinstance(input_tensor, np.ndarray):
+            outputs_manager = default
+        else:
+            outputs_manager = self.outputs_managers.setdefault(input_tensor,
+                                                               default)
+        return outputs_manager
 
     def get_output_tensor(self, input_tensor, function, key=None):
         manager = self.get_outputs_manager(input_tensor)
@@ -119,7 +126,8 @@ class GANModel(object):
     #     return self.output_dist.sample(x_dist_info)
 
     def get_x_dist_flat(self, g_input=None):
-        g_input = g_input or self.g_input
+        if g_input is None:
+            g_input = self.g_input
         function = self.generator_template.construct
         return self.get_output_tensor(g_input, function, key='input')
 
@@ -169,50 +177,40 @@ class GANModel(object):
     ###########################################################################
     # SAMPLING
     ###########################################################################
-    def get_train_g_input_tensor(self):
-        return make_list(self.get_g_input_tensor('random'))
-
-    def get_train_samples(self, collections=None):
-        g_input_tensors_and_names = make_list(self.get_train_g_input_tensor())
-        for g_input_tensor, name in g_input_tensors_and_names:
-            # with tf.Session() as sess:
-            #     x_dist_flat = sess.run(self.get_x_dist_flat(), feed_dict)
-            x_dist_flat = self.get_x_dist_flat(g_input_tensor)
-            # x_dist_flat = self.get_x_dist_flat(z_var)
-            n_rows = min(10, np.floor(np.sqrt(self.batch_size)))
-            n_columns = min(10, np.floor(self.batch_size / n_rows))
-            self.add_images_to_summary(x_dist_flat, name, collections,
-                                       n_rows=n_rows, n_columns=n_columns)
-
-    def get_test_samples(self, sess, z_tensor, images_tensor, sampling_type,
-                         collections=None, **kwargs):
-        if collections is None:
-            collections = ['samples']
-        z_vars_and_names = self.get_random_g_input_tensor()
-        # z_vars_and_names = self.get_g_input_value(sampling_type, **kwargs)
-        for z_var, name in make_list(z_vars_and_names):
-            feed_dict = {z_tensor.name: z_var}
-            x_dist_flat = sess.run(images_tensor, feed_dict=feed_dict)
-            self.add_images_to_summary(x_dist_flat, name, collections)
-
-    def get_g_input_tensor(self, sampling_type, **kwargs):
+    # INPUTS
+    def get_g_input(self, sampling_type, input_type, **kwargs):
         """
         Args:
             sampling_type (str): The type of z_var to get
+            input_type (str): 'tensor' or 'value'
         """
         try:
-            func = getattr(self, self.sampling_functions[sampling_type])
+            func = getattr(self,
+                           self.sampling_functions[sampling_type][input_type])
         except KeyError:
             raise KeyError('Unknown sampling_type: {}'.format(sampling_type))
         return func(**kwargs)
 
+    def get_g_input_tensor(self, sampling_type, **kwargs):
+        return self.get_g_input(sampling_type, 'tensor', **kwargs)
+
+    def get_g_input_value(self, sampling_type, **kwargs):
+        raise NotImplementedError
+
+    def get_train_g_input_tensor(self):
+        return make_list(self.get_g_input_tensor('random'))
+
+    # SPECIFIC INPUTS
     def get_random_g_input_tensor(self):
         return self.g_input, 'samples'
-        # with tf.Session():
-        #     # (n, d)
-        #     # TODO: is eval() required? If not, refactor.
-        #     z_var = self.g_input.eval()
-        # return z_var, 'samples'
+
+    def get_random_g_input_value(self):
+        with tf.Session():
+            # (n, d)
+            # TODO: is eval() required? If not, refactor.
+            return self.g_input.eval(), 'samples'
+        # return g_input, 'samples'
+        # raise NotImplementedError
 
     # def get_linear_interpolation_g_input(self, n_samples=10, n_variations=10):
     #     with tf.Session():
@@ -229,11 +227,53 @@ class GANModel(object):
     #         z_var = np.asarray(z_var, dtype=np.float32)
     #         return z_var, 'linear_interpolations'
 
-    def modify_summary_images(self, images):
+    # SAMPLES
+    def get_train_samples(self, collections=None):
+        g_input_tensors_and_names = make_list(self.get_train_g_input_tensor())
+        for g_input_tensor, name in g_input_tensors_and_names:
+            # with tf.Session() as sess:
+            #     x_dist_flat = sess.run(self.get_x_dist_flat(), feed_dict)
+            x_dist_flat = self.get_x_dist_flat(g_input_tensor)
+            # x_dist_flat = self.get_x_dist_flat(z_var)
+            n_rows = int(min(10, np.floor(np.sqrt(self.batch_size))))
+            n_columns = int(min(10, np.floor(self.batch_size / n_rows)))
+            self.add_images_to_summary(x_dist_flat, name, collections,
+                                       n_rows=n_rows, n_columns=n_columns,
+                                       g_input=g_input_tensor)
+
+    def get_test_samples(self, sess, g_input_tensor, x_dist_flat_tensor,
+                         sampling_type, collections=None, **kwargs):
+        if collections is None:
+            collections = ['samples']
+        # z_vars_and_names = self.get_random_g_input_tensor()
+        g_input_values = self.get_g_input_value(sampling_type, **kwargs)
+        for g_input_value, name in make_list(g_input_values):
+            feed_dict = {g_input_tensor.name: g_input_value}
+            x_dist_flat = sess.run(x_dist_flat_tensor, feed_dict=feed_dict)
+            batch_size = g_input_value.shape[0]
+            n_rows = int(min(10, np.floor(np.sqrt(batch_size))))
+            n_columns = int(min(10, np.floor(batch_size / n_rows)))
+            self.add_images_to_summary(x_dist_flat, name, collections,
+                                       n_rows=n_rows, n_columns=n_columns,
+                                       g_input=g_input_value)
+
+    def modify_summary_images(self, images, g_input):
         return images
 
     def add_images_to_summary(self, x_dist_flat, images_name,
-                              collections=None, n_rows=10, n_columns=10):
+                              collections=None, n_rows=10, n_columns=10,
+                              g_input=None):
+        """
+        Args:
+            x_dist_flat (Tensor or ndarray):
+            images_name:
+            collections:
+            n_rows:
+            n_columns:
+
+        Returns:
+
+        """
         x_dist_info = self.output_dist.activate_dist(x_dist_flat)
 
         # just take the mean image
@@ -258,30 +298,12 @@ class GANModel(object):
             stacked_img.append(tf.concat(1, row_img))
         imgs = tf.concat(0, stacked_img)
         imgs = tf.expand_dims(imgs, 0)
-        imgs = self.modify_summary_images(imgs)
+        imgs = self.modify_summary_images(imgs, g_input)
         tf.summary.image(name=images_name, tensor=imgs,
                          collections=collections)
 
 
-class LatentInputGAN(GANModel):
-    def get_linear_interpolation_g_input(self, n_samples=10, n_variations=10):
-        # with tf.Session():
-        n = n_samples * n_variations
-        assert n < self.batch_size
-        all_z_start = self.g_input[:]
-        all_z_end = self.g_input(n_samples).eval()
-        coefficients = np.linspace(start=0, stop=1, num=n_variations)
-        z_var = []
-        for z_start, z_end in zip(all_z_start, all_z_end):
-            for coeff in coefficients:
-                z_var.append(coeff * z_start + (1 - coeff) * z_end)
-        other = self.g_input(self.batch_size - n).eval()
-        z_var = np.concatenate([z_var, other], axis=0)
-        z_var = np.asarray(z_var, dtype=np.float32)
-        return z_var, 'linear_interpolations'
-
-
-class RegularizedGAN(LatentInputGAN):
+class RegularizedGAN(GANModel):
     def __init__(self, latent_spec, **kwargs):
         """
         Args:
@@ -306,7 +328,14 @@ class RegularizedGAN(LatentInputGAN):
              isinstance(x, (Categorical, Bernoulli))])
 
         super(RegularizedGAN, self).__init__(**kwargs)
-        d = {'latent_code_influence': 'get_latent_code_influence_g_input'}
+        d = {
+            'latent_code_influence': {
+                'tensor': 'get_latent_code_influence_g_input_tensor',
+            },
+            'linear_interpolation': {
+                'tensor': 'get_linear_interpolation_g_input_tensor',
+            },
+        }
         self.sampling_functions.update(d)
 
     def __getstate__(self):
@@ -370,7 +399,7 @@ class RegularizedGAN(LatentInputGAN):
         """ Return the variables with distribution bool == True (concatenated). """
         ret = []
         if z_var is None:
-            z_var = self.g_input()
+            z_var = self.g_input
         for (_, reg_i), z_i in zip(self.latent_spec, self.latent_dist.split_var(z_var)):
             if reg_i:
                 ret.append(z_i)
@@ -427,17 +456,48 @@ class RegularizedGAN(LatentInputGAN):
                 nonreg_idx += 1
         return self.latent_dist.join_dist_infos(ret)
 
+    ###########################################################################
+    # SAMPLING
+    ###########################################################################
     def get_train_g_input_tensor(self):
         if len(self.reg_latent_dist.dists) > 0:
             sampling_type = 'latent_code_influence'
         else:
             sampling_type = 'random'
-        g_inputs_and_names = make_list(self.get_g_input_tensor(sampling_type))
-        return g_inputs_and_names
+        return make_list(self.get_g_input_tensor(sampling_type))
 
-    def get_latent_code_influence_g_input(self, n_samples=10, n_variations=10,
-                                          min_continuous=-2.,
-                                          max_continuous=2.):
+    def get_g_input_value(self, sampling_type, **kwargs):
+        # TODO: self.get_g_input_tensor should return a Tensor and
+        # this method should .eval() its result with a tf.Session()
+        if sampling_type == 'random':
+            return self.get_g_input(sampling_type, 'value', **kwargs)
+        return self.get_g_input_tensor(sampling_type, **kwargs)
+
+    def get_linear_interpolation_g_input_tensor(self, n_samples=10,
+                                                n_variations=10):
+        """
+        Returns:
+            (ndarray, str):
+        """
+        # TODO: return a tensor instead of ndarray
+        with tf.Session():
+            n = n_samples * n_variations
+            all_z_start = self.latent_dist.sample_prior(n_samples).eval()
+            all_z_end = self.latent_dist.sample_prior(n_samples).eval()
+            coefficients = np.linspace(start=0, stop=1, num=n_variations)
+            z_var = []
+            for z_start, z_end in zip(all_z_start, all_z_end):
+                for coeff in coefficients:
+                    z_var.append(coeff * z_start + (1 - coeff) * z_end)
+            other = self.latent_dist.sample_prior(self.batch_size - n).eval()
+            z_var = np.concatenate([z_var, other], axis=0)
+            z_var = np.asarray(z_var, dtype=np.float32)
+            return z_var, 'linear_interpolations'
+
+    def get_latent_code_influence_g_input_tensor(self, n_samples=10,
+                                                 n_variations=10,
+                                                 min_continuous=-2.,
+                                                 max_continuous=2.):
         """
         Args:
             n_samples (int): The number of different samples (n_columns).
@@ -447,7 +507,10 @@ class RegularizedGAN(LatentInputGAN):
              code
             max_continuous (float): The maximum value for a continuous latent
              code
+        Returns:
+            (ndarray, str):
         """
+        # TODO: return a tensor instead of ndarray
         if len(self.reg_latent_dist.dists) == 0:
             raise ValueError('The model must have at least one regularization '
                              'latent distribution.')
@@ -559,7 +622,7 @@ class MNISTInfoGAN(RegularizedGAN):
 
 
 class CelebAInfoGAN(RegularizedGAN):
-    def build_network(self):
+    def build_network(self, scope):
         with tf.variable_scope("d_net"):
             shared_template = \
                 (pt.template("input").

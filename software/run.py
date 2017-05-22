@@ -6,7 +6,7 @@ import os
 from infogan.algos import trainer2
 from infogan.algos.cycle_gan_loss_builder import CycleGANLossBuilder
 from infogan.algos.infogan_trainer import InfoGANTrainer, WassersteinGANTrainer
-from infogan.algos.loss import GANLoss, LeastSquaresGANLoss
+from infogan.algos.loss import GANLoss, LeastSquaresGANLoss, WassersteinGANLoss
 from infogan.algos.loss_builder2 import InfoGANLossBuilder, GANLossBuilder
 from infogan.misc.datasets import MnistDataset, CelebADataset, \
     HorseOrZebraDataset
@@ -78,7 +78,7 @@ def train(model_name, learning_params):
         ]
         model = CelebAInfoGAN(
             batch_size=batch_size,
-            dataset=output_dataset,
+            output_dataset=output_dataset,
             output_dist=MeanGaussian(output_dataset.image_dim, fix_std=True),
             latent_spec=latent_spec,
         )
@@ -89,7 +89,7 @@ def train(model_name, learning_params):
         ]
         model = CelebAInfoGAN(
             batch_size=batch_size,
-            dataset=output_dataset,
+            output_dataset=output_dataset,
             output_dist=MeanGaussian(output_dataset.image_dim, fix_std=True),
             final_activation=None,
             latent_spec=latent_spec,
@@ -120,7 +120,7 @@ def train(model_name, learning_params):
         d_optim = tf.train.AdamOptimizer(2e-4, beta1=0.5)
         g_optim = tf.train.AdamOptimizer(1e-3, beta1=0.5)
         loss = GANLoss()
-        loss_builder = GANLossBuilder(
+        loss_builder = InfoGANLossBuilder(
             model=model,
             loss=loss,
             batch_size=batch_size,
@@ -151,19 +151,39 @@ def train(model_name, learning_params):
         #     generator_learning_rate=1e-3,
         # )
     elif trainer == 'wasserstein':
-        algo = WassersteinGANTrainer(
+        d_optim = tf.train.AdamOptimizer(2e-4, beta1=0.5)
+        g_optim = tf.train.AdamOptimizer(1e-3, beta1=0.5)
+        loss = WassersteinGANLoss()
+        loss_builder = GANLossBuilder(
             model=model,
-            dataset=output_dataset,
+            loss=loss,
             batch_size=batch_size,
+            g_optimizer=g_optim,
+            d_optimizer=d_optim,
+
+        )
+        algo = trainer2.WassersteinGANTrainer(
+            loss_builder=loss_builder,
             exp_name=experiment_name,
             log_dir=log_dir,
             checkpoint_dir=checkpoint_dir,
             max_epoch=max_epoch,
             updates_per_epoch=updates_per_epoch,
-            info_reg_coeff=1.0,
-            discrim_learning_rate=5e-5,
-            generator_learning_rate=5e-5,
         )
+
+        # algo = WassersteinGANTrainer(
+        #     model=model,
+        #     dataset=output_dataset,
+        #     batch_size=batch_size,
+        #     exp_name=experiment_name,
+        #     log_dir=log_dir,
+        #     checkpoint_dir=checkpoint_dir,
+        #     max_epoch=max_epoch,
+        #     updates_per_epoch=updates_per_epoch,
+        #     info_reg_coeff=1.0,
+        #     discrim_learning_rate=5e-5,
+        #     generator_learning_rate=5e-5,
+        # )
     elif trainer == 'test':
         d_optim = tf.train.AdamOptimizer(2e-4, beta1=0.5)
         g_optim = tf.train.AdamOptimizer(1e-3, beta1=0.5)

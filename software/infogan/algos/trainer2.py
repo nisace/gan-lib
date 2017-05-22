@@ -52,11 +52,15 @@ class Trainer(object):
         raise NotImplementedError
 
     def train(self):
-        for i, model in enumerate(self.loss_builder.models):
-            name = 'model_{}.pkl'.format(i)
-            model_path = os.path.join(self.checkpoint_dir, name)
-            with open(model_path, 'wb') as f:
-                pkl.dump(model, f)
+        model_path = os.path.join(self.checkpoint_dir, 'models.pkl')
+        with open(model_path, 'wb') as f:
+            pkl.dump(self.loss_builder.models, f)
+
+        # for i, model in enumerate(self.loss_builder.models):
+        #     name = 'model_{}.pkl'.format(i)
+        #     model_path = os.path.join(self.checkpoint_dir, name)
+        #     with open(model_path, 'wb') as f:
+        #         pkl.dump(model, f)
 
         self.loss_builder.init_opt()
         init = tf.global_variables_initializer()
@@ -122,11 +126,11 @@ class GANTrainer(Trainer):
 
 
 class WassersteinGANTrainer(Trainer):
-    def __init__(self):
+    def __init__(self, **kwargs):
         self.n_critic = 5
         self.d_weight_clip_by_value = [-0.01, 0.01]
         self.clip = None
-        super(WassersteinGANTrainer, self).__init__()
+        super(WassersteinGANTrainer, self).__init__(**kwargs)
 
     def update(self, sess, i, log_vars, all_log_vals):
         for _ in range(self.n_critic):

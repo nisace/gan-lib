@@ -3,5 +3,5 @@ model_name: celebA_infogan
 learning_params:
   trainer: infogan
   updates_per_epoch: 100
-  max_epoch: 500
+  max_epoch: 150
   batch_size: 128

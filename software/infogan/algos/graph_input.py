@@ -1,3 +1,5 @@
+import numpy as np
+
 class GraphOutputsManager(object):
     def __init__(self, input_tensor):
         self.input_tensor = input_tensor
@@ -18,8 +20,12 @@ class GraphOutput(object):
 
     def get_output_tensor(self):
         if self.output_tensor is None:
-            msg = 'Applying function "{}" to tensor "{}"'
-            print(msg.format(self.function.__name__, self.input_tensor.name))
+            msg = 'Applying function "{}" to {}'
+            if isinstance(self.input_tensor, np.ndarray):
+                name = 'numpy.ndarray'
+            else:
+                name = 'tensor "{}"'.format(self.input_tensor.name)
+            print(msg.format(self.function.__name__, name))
             if self.key is not None:
                 kwargs = {self.key: self.input_tensor}
                 self.output_tensor = self.function(**kwargs)

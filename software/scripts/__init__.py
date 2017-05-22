@@ -42,11 +42,11 @@ def train(params_file):
                    'the column.')
 def sample(checkpoint_path, sampling_type):
     import sample
-    model_path = os.path.dirname(checkpoint_path)
-    model_path = os.path.join(model_path, 'model.pkl')
-    with open(model_path, 'rb') as f:
-        model = pkl.load(f)
-    sample.sample(checkpoint_path, model, sampling_type)
-
+    models_path = os.path.dirname(checkpoint_path)
+    models_path = os.path.join(models_path, 'models.pkl')
+    with open(models_path, 'rb') as f:
+        models = pkl.load(f)
+    for model in models:
+        sample.sample(checkpoint_path, model, sampling_type)
 
 all_scripts.add_command(train)

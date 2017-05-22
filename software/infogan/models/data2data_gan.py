@@ -22,14 +22,27 @@ class Data2DataGAN(GANModel):
     #     d_input_shape = [batch_size, self.input_dataset.image_dim]
     #     return tf.placeholder(tf.float32, d_input_shape)
 
-    def get_g_feed_dict(self):
+    def get_random_g_input_value_star(self):
         x, _ = self.input_dataset.train.next_batch(self.batch_size)
+        return x
+
+    def get_g_feed_dict(self):
+        x = self.get_random_g_input_value_star()
         return {self.g_input: x}
 
-    def modify_summary_images(self, images):
+    ###########################################################################
+    # SAMPLING
+    ###########################################################################
+    def get_g_input_value(self, sampling_type, **kwargs):
+        return self.get_g_input(sampling_type, 'value', **kwargs)
+
+    def get_random_g_input_value(self):
+        return self.get_random_g_input_value_star(), 'samples'
+
+    def modify_summary_images(self, images, g_input):
         shape = [1] + list(self.input_shape)
         shape[1] *= self.batch_size
-        input_images = tf.reshape(self.g_input, shape)
+        input_images = tf.reshape(g_input, shape)
         return tf.concat(2, [input_images, images])
 
 
