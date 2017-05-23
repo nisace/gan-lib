@@ -6,7 +6,7 @@ import tensorflow as tf
 from utils.date_time_utils import get_timestamp
 
 
-def sample(checkpoint_path, model, sampling_type, n_rows=1, n_columns=1):
+def sample(checkpoint_path, model, sampling_type, n_samples=1):
     """
     Args:
         checkpoint_path (str): The checkpoint file path (.ckpt file).
@@ -29,8 +29,9 @@ def sample(checkpoint_path, model, sampling_type, n_rows=1, n_columns=1):
 
         print("Sampling")
         with tf.variable_scope("samples", reuse=True):
-            model.get_test_samples(sess, z_tensor, images_tensor,
-                                   sampling_type, collections=[collection])
+            for _ in range(n_samples):
+                model.get_test_samples(sess, z_tensor, images_tensor,
+                                       sampling_type, collections=[collection])
 
         print("Writing summary")
         # Get summary_writer
