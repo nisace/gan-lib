@@ -10,19 +10,11 @@ class conv_norm(pt.VarStoreMethod):
     def __call__(self, input_layer, epsilon=1e-5, momentum=0.1, name="batch_norm",
                  in_dim=None, phase=Phase.train):
         self.ema = tf.train.ExponentialMovingAverage(decay=0.9)
-        print('conv_norm')
         shape = input_layer.shape
         shp = [shape[i] for i in range(len(shape)) if i not in self.moment_axes]
         if in_dim is not None:
             shp[-1] = in_dim
-        # shp = in_dim or shape[-1]
-        # print('input_layer.shape: {}'.format(shape))
-        # print(type(shape))
-        # with tf.variable_scope(tf.get_variable_scope()) as scope:
-        # with tf.variable_scope(tf.get_variable_scope(), reuse=False) as scope:
 
-        # print(tf.get_variable_scope().name)
-        # print(tf.get_variable_scope().reuse)
         self.gamma = self.variable("gamma", [shp[-1]], init=tf.random_normal_initializer(1., 0.02))
         self.beta = self.variable("beta", [shp[-1]], init=tf.constant_initializer(0.))
 
@@ -30,14 +22,6 @@ class conv_norm(pt.VarStoreMethod):
         reshape = [d if i not in self.moment_axes else 1 for i, d in enumerate(shape)]
         self.mean = tf.reshape(self.mean, reshape)
         self.variance = tf.reshape(self.variance, reshape)
-        # sigh...tf's shape system is so..
-        # print('mean shape {}'.format(self.mean.get_shape()))
-        # self.mean.set_shape(shp)
-        # print(type(self.mean))
-        # print('mean shape {}'.format(self.mean.get_shape()))
-        # self.variance.set_shape(shp)
-        # self.mean.set_shape((shp,))
-        # self.variance.set_shape((shp,))
 
         with tf.variable_scope(tf.get_variable_scope(), reuse=False) as scope:
             self.ema_apply_op = self.ema.apply([self.mean, self.variance])
@@ -165,25 +149,3 @@ class custom_residual(pt.VarStoreMethod):
                 custom_conv2d(128, k_h=3, k_w=3, d_h=1, d_w=1, padding='VALID'). \
                 conv_instance_norm(). \
                 apply(tf.add, input_layer).tensor
-
-        # out = input_layer.apply(tf.pad, paddings=paddings, mode=mode)
-        # out = out.apply(func, *args, **kwargs)
-        # out = out.apply(conv_instance_norm)
-        # out = out.apply(tf.nn.relu)
-        #
-        # out = out.apply(tf.pad, paddings=paddings, mode=mode)
-        # out = out.apply(func, *args, **kwargs)
-        # out = out.apply(conv_instance_norm)
-        # out = out.apply(tf.add, input_layer)
-
-        # out = tf.pad(input_layer, paddings=paddings, mode=mode)
-        # out = func(out, *args, **kwargs)
-        # out = conv_instance_norm(out)
-        # out = out.apply(tf.nn.relu)
-        #
-        # out = tf.pad(out, paddings=paddings, mode=mode)
-        # out = func(out, *args, **kwargs)
-        # out = conv_instance_norm(out)
-        # out = out + input_layer
-
-        return out

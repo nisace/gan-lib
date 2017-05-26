@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class GraphOutputsManager(object):
     def __init__(self, input_tensor):
         self.input_tensor = input_tensor

@@ -56,12 +56,6 @@ class Trainer(object):
         with open(model_path, 'wb') as f:
             pkl.dump(self.loss_builder.models, f)
 
-        # for i, model in enumerate(self.loss_builder.models):
-        #     name = 'model_{}.pkl'.format(i)
-        #     model_path = os.path.join(self.checkpoint_dir, name)
-        #     with open(model_path, 'wb') as f:
-        #         pkl.dump(model, f)
-
         self.loss_builder.init_opt()
         init = tf.global_variables_initializer()
 
