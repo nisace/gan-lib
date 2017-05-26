@@ -1,11 +1,12 @@
 from __future__ import absolute_import
 from __future__ import print_function
-import tensorflow as tf
+
 import os
+
+import tensorflow as tf
 
 from infogan.algos import trainer2
 from infogan.algos.cycle_gan_loss_builder import CycleGANLossBuilder
-from infogan.algos.infogan_trainer import InfoGANTrainer, WassersteinGANTrainer
 from infogan.algos.loss import GANLoss, LeastSquaresGANLoss, WassersteinGANLoss
 from infogan.algos.loss_builder2 import InfoGANLossBuilder, GANLossBuilder
 from infogan.misc.datasets import MnistDataset, CelebADataset, \
@@ -137,19 +138,6 @@ def train(model_name, learning_params):
             updates_per_epoch=updates_per_epoch,
         )
 
-        # algo = InfoGANTrainer(
-        #     model=model,
-        #     dataset=output_dataset,
-        #     batch_size=batch_size,
-        #     exp_name=experiment_name,
-        #     log_dir=log_dir,
-        #     checkpoint_dir=checkpoint_dir,
-        #     max_epoch=max_epoch,
-        #     updates_per_epoch=updates_per_epoch,
-        #     info_reg_coeff=1.0,
-        #     discrim_learning_rate=2e-4,
-        #     generator_learning_rate=1e-3,
-        # )
     elif trainer == 'wasserstein':
         d_optim = tf.train.AdamOptimizer(2e-4, beta1=0.5)
         g_optim = tf.train.AdamOptimizer(1e-3, beta1=0.5)
@@ -171,19 +159,6 @@ def train(model_name, learning_params):
             updates_per_epoch=updates_per_epoch,
         )
 
-        # algo = WassersteinGANTrainer(
-        #     model=model,
-        #     dataset=output_dataset,
-        #     batch_size=batch_size,
-        #     exp_name=experiment_name,
-        #     log_dir=log_dir,
-        #     checkpoint_dir=checkpoint_dir,
-        #     max_epoch=max_epoch,
-        #     updates_per_epoch=updates_per_epoch,
-        #     info_reg_coeff=1.0,
-        #     discrim_learning_rate=5e-5,
-        #     generator_learning_rate=5e-5,
-        # )
     elif trainer == 'test':
         d_optim = tf.train.AdamOptimizer(2e-4, beta1=0.5)
         g_optim = tf.train.AdamOptimizer(1e-3, beta1=0.5)

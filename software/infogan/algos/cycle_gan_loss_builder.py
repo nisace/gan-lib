@@ -28,25 +28,19 @@ class CycleGANLossBuilder(AbstractLossBuilder):
         return feed_dict
 
     def init_loss(self):
-        # print("\n".join(["Trainable variables"] + [v.name for v in tf.trainable_variables()]))
         # Initialize losses
         for i, loss_builder in enumerate(self.loss_builders):
-            print('Build loss builder %s' % i)
             loss_builder.init_loss()
             loss_builder.add_summaries()
-            # print("\n".join(["Trainable variables"] + [v.name for v in tf.trainable_variables()]))
 
         # Sum generators losses
         self.g_loss = tf.add_n([l.g_loss for l in self.loss_builders])
 
         # Add cycle consistency loss
         def get_sub_cycle_loss(model_1, model_2):
-            print("model_1")
             fake_x_1 = model_1.generate()
-            print("model_2")
             with pt.defaults_scope(phase=pt.Phase.train):
                 with tf.variable_scope(tf.get_variable_scope(), reuse=True):
-                    # scope.reuse_variables()
                     fake_x_2 = model_2.generate(fake_x_1)
             print("model_3")
             x_2 = model_1.g_input

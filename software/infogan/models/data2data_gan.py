@@ -16,12 +16,6 @@ class Data2DataGAN(GANModel):
         g_input_shape = [self.batch_size, self.input_dataset.image_dim]
         return tf.placeholder(tf.float32, g_input_shape)
 
-    # def g_input(self, batch_size=None):
-    #     if batch_size is None:
-    #         batch_size = self.batch_size
-    #     d_input_shape = [batch_size, self.input_dataset.image_dim]
-    #     return tf.placeholder(tf.float32, d_input_shape)
-
     def get_random_g_input_value_star(self):
         x, _ = self.input_dataset.train.next_batch(self.batch_size)
         return x

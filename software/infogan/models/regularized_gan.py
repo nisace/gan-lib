@@ -1,8 +1,6 @@
-from functools import wraps
-
+import numpy as np
 import prettytensor as pt
 import tensorflow as tf
-import numpy as np
 
 from infogan.algos.graph_input import GraphOutputsManager
 from infogan.misc.custom_ops import leaky_rectify
@@ -104,46 +102,16 @@ class GANModel(object):
             d_feed_dict.update(g_feed_dict)
         return d_feed_dict
 
-    # @property
-    # def x_dist_flat(self):
-    #     if self._x_dist_flat is None:
-    #         print("x_dist_flat")
-    #         i = self.g_input()
-    #         self._x_dist_flat = self.generator_template.construct(input=i)
-    #         # self._x_dist_flat = self.generator_template.construct(input=self.g_input)
-    #     return self._x_dist_flat
-
     def generate(self, g_input=None):
         x_dist_flat = self.get_x_dist_flat(g_input)
         x_dist_info = self.get_output_tensor(x_dist_flat, self.output_dist.activate_dist)
         return self.output_dist.sample(x_dist_info)
-        # return self.get_output_tensor(x_dist_info, self.output_dist.sample)
-
-    # # TODO: add decorator to manage default z_var=self.g_input
-    # def generate(self, g_input=None):
-    #     x_dist_flat = self.get_x_dist_flat(g_input)
-    #     x_dist_info = self.output_dist.activate_dist(x_dist_flat)
-    #     return self.output_dist.sample(x_dist_info)
 
     def get_x_dist_flat(self, g_input=None):
         if g_input is None:
             g_input = self.g_input
         function = self.generator_template.construct
         return self.get_output_tensor(g_input, function, key='input')
-
-    # def get_x_dist_flat(self, g_input=None):
-    #     g_input = g_input or self.g_input
-    #     # if g_input in self.g_inputs_outputs.keys():
-    #     #     return self.g_inputs_outputs[g_input]
-    #     x_dist_flat = self.generator_template.construct(input=g_input)
-    #     self.g_inputs_outputs[g_input] = x_dist_flat
-    #     return x_dist_flat
-
-    # def get_x_dist_flat(self, g_input=None):
-    #     if g_input is None:
-    #         return self.x_dist_flat
-    #     else:
-    #         return self.generator_template.construct(input=g_input)
 
     def discriminate(self, d_input=None):
         d_input = d_input if d_input is not None else self.d_input
@@ -152,27 +120,6 @@ class GANModel(object):
         if self.final_activation is not None:
             d_out = self.final_activation(d_out)
         return d_out
-
-    # def discriminate(self, d_input=None):
-    #     d_input = d_input if d_input is not None else self.d_input
-    #     if d_input in self.d_inputs_outputs.keys():
-    #         return self.d_inputs_outputs[d_input]
-    #     d_out = self.discriminator_template.construct(input=d_input)
-    #     if self.final_activation is not None:
-    #         d_out = self.final_activation(d_out[:, 0])
-    #     else:
-    #         d_out = d_out[:, 0]
-    #     self.d_inputs_outputs[d_input] = d_out
-    #     return d_out
-
-    # def discriminate(self, d_input=None):
-    #     if d_input is None:
-    #         d_input = self.d_input()
-    #     d_out = self.discriminator_template.construct(input=d_input)
-    #     if self.final_activation is not None:
-    #         return self.final_activation(d_out[:, 0])
-    #     else:
-    #         return d_out[:, 0]
 
     ###########################################################################
     # SAMPLING
@@ -209,23 +156,6 @@ class GANModel(object):
             # (n, d)
             # TODO: is eval() required? If not, refactor.
             return self.g_input.eval(), 'samples'
-        # return g_input, 'samples'
-        # raise NotImplementedError
-
-    # def get_linear_interpolation_g_input(self, n_samples=10, n_variations=10):
-    #     with tf.Session():
-    #         n = n_samples * n_variations
-    #         all_z_start = self.g_input(n_samples).eval()
-    #         all_z_end = self.g_input(n_samples).eval()
-    #         coefficients = np.linspace(start=0, stop=1, num=n_variations)
-    #         z_var = []
-    #         for z_start, z_end in zip(all_z_start, all_z_end):
-    #             for coeff in coefficients:
-    #                 z_var.append(coeff * z_start + (1 - coeff) * z_end)
-    #         other = self.g_input(self.batch_size - n).eval()
-    #         z_var = np.concatenate([z_var, other], axis=0)
-    #         z_var = np.asarray(z_var, dtype=np.float32)
-    #         return z_var, 'linear_interpolations'
 
     # SAMPLES
     def get_train_samples(self, collections=None):
@@ -346,20 +276,7 @@ class RegularizedGAN(GANModel):
     def build_g_input(self):
         return self.latent_dist.sample_prior(self.batch_size)
 
-    # def build_g_input(self):
-    #     g_input_shape = [self.batch_size, self.latent_dist.dim]
-    #     return tf.placeholder(tf.float32, g_input_shape)
-
-    # def build_g_input(self, batch_size=None):
-    # # def g_input(self, batch_size=None):
-    #     # return place holder
-    #     if batch_size is None:
-    #         batch_size = self.batch_size
-    #     print("building g_input")
-    #     return self.latent_dist.sample_prior(batch_size)
-
     def get_g_feed_dict(self):
-        # return self.latent_dist.sample_prior(batch_size)
         return None
 
     def get_reg_dist_info(self, x_var):
