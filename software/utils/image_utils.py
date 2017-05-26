@@ -23,6 +23,10 @@ def imread(path, is_grayscale=False):
         return scipy.misc.imread(path).astype(np.float)
 
 
+def normalize(image):
+    return np.array(image) / 127.5 - 1.
+
+
 def transform(image, input_height, input_width,
               resize_height=64, resize_width=64, is_crop=True):
     """ from https://github.com/carpedm20/DCGAN-tensorflow/blob/e4b395b3d31a4a89fb73dea405f6485a2795abb6/utils.py
@@ -34,7 +38,7 @@ def transform(image, input_height, input_width,
     else:
         cropped_image = scipy.misc.imresize(image,
                                             [resize_height, resize_width])
-    return np.array(cropped_image) / 127.5 - 1.
+    return normalize(cropped_image)
 
 
 def get_image(image_path, input_height, input_width,

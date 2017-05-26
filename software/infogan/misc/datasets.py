@@ -6,12 +6,13 @@ import numpy as np
 from tensorflow.examples.tutorials import mnist
 
 from utils.file_system_utils import download, extract_all
-from utils.image_utils import get_image
+from utils.image_utils import get_image, imread, normalize
 
 DATA_FOLDER = 'data'
 
-class Dataset(object):
-    def __init__(self, images, labels=None):
+
+class DatasetIterator(object):
+    def __init__(self, images, labels=None, dtype=np.float32):
         """
         Args:
             images (ndarray): shape (n, ...)
@@ -23,6 +24,7 @@ class Dataset(object):
         self._num_examples = images.shape[0]
         # shuffle on first run
         self._index_in_epoch = self._num_examples
+        self.dtype = dtype
 
     @property
     def images(self):
@@ -39,6 +41,12 @@ class Dataset(object):
     @property
     def epochs_completed(self):
         return self._epochs_completed
+
+    def transform(self, data):
+        return data
+
+    def transform_batch(self, batch):
+        return batch
 
     def next_batch(self, batch_size):
         """Return the next `batch_size` examples from this data set."""
@@ -58,20 +66,23 @@ class Dataset(object):
             self._index_in_epoch = batch_size
             assert batch_size <= self._num_examples
         end = self._index_in_epoch
+        data = self._images[start:end]
+        data = [self.transform(d) for d in data]
+        data = self.transform_batch(data)
         if self._labels is None:
-            return self._images[start:end], None
+            return data, None
         else:
-            return self._images[start:end], self._labels[start:end]
+            return data, self._labels[start:end]
 
 
-class Dataset_with_transform(Dataset):
-    def next_batch(self, batch_size):
-        x, y = super(Dataset_with_transform, self).next_batch(batch_size)
-        x = [get_image(str(img_path[0]), 108, 108,
-                       resize_height=64, resize_width=64,
-                       is_crop=True, is_grayscale=False) for img_path in x]
-        x = np.array(x).reshape(-1, 64 * 64 * 3)
-        return x, y
+class CelebADatasetIterator(DatasetIterator):
+    def transform(self, data):
+        return get_image(str(data[0]), 108, 108,
+                         resize_height=64, resize_width=64,
+                         is_crop=True, is_grayscale=False)
+
+    def transform_batch(self, batch):
+        return np.array(batch).reshape(-1, 64 * 64 * 3)
 
 
 class MnistDataset(object):
@@ -92,7 +103,7 @@ class MnistDataset(object):
             sup_images.extend(self.train.images[ids[:10]])
             sup_labels.extend(self.train.labels[ids[:10]])
         np.random.set_state(rnd_state)
-        self.supervised_train = Dataset(
+        self.supervised_train = DatasetIterator(
             np.asarray(sup_images),
             np.asarray(sup_labels),
         )
@@ -115,7 +126,7 @@ class Cifar10Dataset(object):
     def __init__(self, dtype=np.float32):
         self.dtype = dtype
         x_train, y_train = self.load_data()
-        self.train = Dataset(x_train, y_train)
+        self.train = DatasetIterator(x_train, y_train)
         self.image_dim = 32 * 32 * 3
         self.image_shape = (32, 32, 3)
 
@@ -154,7 +165,7 @@ class Cifar10Dataset(object):
 class CelebADataset(object):
     def __init__(self, dtype=np.float32):
         self.dtype = dtype
-        self.train = Dataset_with_transform(self.images_paths())
+        self.train = CelebADatasetIterator(self.images_paths())
         self.image_dim = 64 * 64 * 3
         self.image_shape = (64, 64, 3)
 
@@ -166,6 +177,53 @@ class CelebADataset(object):
         download(origin, download_path)
         extract_path = extract_all(download_path)
         return np.array(glob(os.path.join(extract_path, '*.jpg')))
+
+    def inverse_transform(self, data):
+        return data
+
+
+class HorseOrZebraDatasetIterator(DatasetIterator):
+    def transform(self, data):
+        image = imread(data[0])
+        return normalize(image)
+
+    def transform_batch(self, batch):
+        return np.array(batch, dtype=self.dtype).reshape(-1, 256 * 256 * 3)
+
+
+class HorseOrZebraDataset(object):
+    def __init__(self, name, dtype=np.float32):
+        """
+        Args:
+            name (str): 'horse' or 'zebra'
+        """
+        assert name in ['horse', 'zebra']
+        self.name = 'A' if name == 'horse' else 'B'
+        self.dtype = dtype
+        self.image_dim = 256 * 256 * 3
+        self.image_shape = (256, 256, 3)
+        self.train = HorseOrZebraDatasetIterator(self.images_paths('train'))
+        self.test = HorseOrZebraDatasetIterator(self.images_paths('test'))
+
+    def images_paths(self, set):
+        origin = 'https://people.eecs.berkeley.edu/~taesung_park/CycleGAN/datasets/horse2zebra.zip'
+        origin_file_name = os.path.basename(origin)
+        download_folder = os.path.join(DATA_FOLDER, 'horse2zebra')
+        download_path = os.path.join(download_folder, origin_file_name)
+        download(origin, download_path)
+        extract_path = extract_all(download_path)
+        extract_path = os.path.join(extract_path, set + self.name)
+        images_paths = glob(os.path.join(extract_path, '*.jpg'))
+        final_images_paths = []
+        for image_path in images_paths:
+            image = imread(image_path)
+            if image.shape != self.image_shape:
+                msg = '{} has wrong shape {}. It should be {}. Removing file'
+                print(msg.format(image_path, image.shape, self.image_shape))
+                os.remove(image_path)
+            else:
+                final_images_paths.append(image_path)
+        return np.array(final_images_paths)
 
     def inverse_transform(self, data):
         return data

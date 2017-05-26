@@ -1,0 +1,7 @@
+model_name: horse_zebra
+
+learning_params:
+  trainer: cycle_gan
+  updates_per_epoch: 100
+  max_epoch: 1000
+  batch_size: 1
