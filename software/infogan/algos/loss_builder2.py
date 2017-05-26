@@ -62,7 +62,6 @@ class AbstractLossBuilder(object):
     def init_optimizers(self):
         with pt.defaults_scope(phase=pt.Phase.train):
             all_vars = tf.trainable_variables()
-            print("\n".join(["Trainable variables"] + [v.name for v in all_vars]))
             self.d_vars = [var for var in all_vars if var.name.startswith('d_')]
             g_vars = [var for var in all_vars if var.name.startswith('g_')]
 
@@ -110,7 +109,6 @@ class GANLossBuilder(AbstractLossBuilder):
             self.log_vars.append(("min_fake_d", tf.reduce_min(fake_d)))
             self.fake_x = fake_x
 
-            print('self.loss.get_d_loss(real_d, fake_d)')
             self.d_loss = self.loss.get_d_loss(real_d, fake_d)
             self.g_loss = self.loss.get_g_loss(fake_d)
 

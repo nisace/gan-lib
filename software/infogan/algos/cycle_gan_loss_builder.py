@@ -42,14 +42,11 @@ class CycleGANLossBuilder(AbstractLossBuilder):
             with pt.defaults_scope(phase=pt.Phase.train):
                 with tf.variable_scope(tf.get_variable_scope(), reuse=True):
                     fake_x_2 = model_2.generate(fake_x_1)
-            print("model_3")
             x_2 = model_1.g_input
             return tf.reduce_mean(tf.abs(fake_x_2 - x_2))
 
-        print('Cycle loss 0')
         cycle_loss = get_sub_cycle_loss(self.loss_builders[0].model,
                                         self.loss_builders[1].model)
-        print('Cycle loss 1')
         cycle_loss += get_sub_cycle_loss(self.loss_builders[1].model,
                                          self.loss_builders[0].model)
         self.g_loss += self.cycle_loss_factor * cycle_loss

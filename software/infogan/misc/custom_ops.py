@@ -10,7 +10,6 @@ class conv_norm(pt.VarStoreMethod):
     def __call__(self, input_layer, epsilon=1e-5, momentum=0.1, name="batch_norm",
                  in_dim=None, phase=Phase.train):
         self.ema = tf.train.ExponentialMovingAverage(decay=0.9)
-        print('conv_norm')
         shape = input_layer.shape
         shp = [shape[i] for i in range(len(shape)) if i not in self.moment_axes]
         if in_dim is not None:
