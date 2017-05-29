@@ -1,6 +1,6 @@
 import tensorflow as tf
 import prettytensor as pt
-from infogan.algos.loss_builder2 import AbstractLossBuilder
+from infogan.algos.loss_builder import AbstractLossBuilder
 
 
 class CycleGANLossBuilder(AbstractLossBuilder):
