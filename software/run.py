@@ -5,10 +5,10 @@ import os
 
 import tensorflow as tf
 
-from infogan.algos import trainer2
 from infogan.algos.cycle_gan_loss_builder import CycleGANLossBuilder
 from infogan.algos.loss import GANLoss, LeastSquaresGANLoss, WassersteinGANLoss
-from infogan.algos.loss_builder2 import InfoGANLossBuilder, GANLossBuilder
+from infogan.algos.loss_builder import InfoGANLossBuilder, GANLossBuilder
+from infogan.algos.trainer import GANTrainer, WassersteinGANTrainer
 from infogan.misc.datasets import MnistDataset, CelebADataset, \
     HorseOrZebraDataset
 from infogan.misc.distributions import Uniform, Categorical, MeanBernoulli, \
@@ -129,7 +129,7 @@ def train(model_name, learning_params):
             d_optimizer=d_optim,
 
         )
-        algo = trainer2.GANTrainer(
+        algo = GANTrainer(
             loss_builder=loss_builder,
             exp_name=experiment_name,
             log_dir=log_dir,
@@ -150,7 +150,7 @@ def train(model_name, learning_params):
             d_optimizer=d_optim,
 
         )
-        algo = trainer2.WassersteinGANTrainer(
+        algo = WassersteinGANTrainer(
             loss_builder=loss_builder,
             exp_name=experiment_name,
             log_dir=log_dir,
@@ -171,7 +171,7 @@ def train(model_name, learning_params):
             discrim_optimizer=d_optim,
             generator_optimizer=g_optim,
         )
-        algo = trainer2.GANTrainer(
+        algo = GANTrainer(
             loss_builder=loss_builder,
             exp_name=experiment_name,
             log_dir=log_dir,
@@ -199,7 +199,7 @@ def train(model_name, learning_params):
             g_optimizer=g_optim,
             d_optimizer=d_optim,
         )
-        algo = trainer2.GANTrainer(
+        algo = GANTrainer(
             loss_builder=loss_builder,
             exp_name=experiment_name,
             log_dir=log_dir,
