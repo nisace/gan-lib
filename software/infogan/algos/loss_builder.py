@@ -131,7 +131,7 @@ class InfoGANLossBuilder(GANLossBuilder):
         with pt.defaults_scope(phase=pt.Phase.train):
             mi_est = tf.constant(0.)
             cross_ent = tf.constant(0.)
-            reg_z = self.model.reg_z()
+            reg_z = self.model.reg_z
             fake_reg_z_dist_info = self.model.get_reg_dist_info(self.fake_x)
             # compute for discrete and continuous codes separately
             # discrete:

@@ -312,14 +312,16 @@ class RegularizedGAN(GANModel):
                 ret.append(dist_info_i)
         return self.reg_cont_latent_dist.join_dist_infos(ret)
 
-    def reg_z(self, z_var=None):
-        """ Return the variables with distribution bool == True (concatenated). """
+    @property
+    def reg_z(self):
+        """
+        Return the variables with distribution bool == True (concatenated).
+        """
         ret = []
-        if z_var is None:
-            z_var = self.g_input
-        for (_, reg_i), z_i in zip(self.latent_spec, self.latent_dist.split_var(z_var)):
-            if reg_i:
-                ret.append(z_i)
+        latent_components = self.latent_dist.split_var(self.g_input)
+        for (_, is_regularizer), z in zip(self.latent_spec, latent_components):
+            if is_regularizer:
+                ret.append(z)
         return self.reg_latent_dist.join_vars(ret)
 
     ###########################################################################

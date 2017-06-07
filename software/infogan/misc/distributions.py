@@ -400,8 +400,8 @@ class Product(Distribution):
         """
         cum_dims = list(np.cumsum(self.dims))
         out = []
-        for slice_from, slice_to, dist in zip([0] + cum_dims, cum_dims, self.dists):
-            sliced = x[:, slice_from:slice_to]
+        for start, end, dist in zip([0] + cum_dims, cum_dims, self.dists):
+            sliced = x[:, start:end]
             out.append(sliced)
         return out
 
