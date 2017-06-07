@@ -322,57 +322,6 @@ class RegularizedGAN(GANModel):
                 ret.append(z_i)
         return self.reg_latent_dist.join_vars(ret)
 
-    def nonreg_z(self, z_var):
-        ret = []
-        for (_, reg_i), z_i in zip(self.latent_spec, self.latent_dist.split_var(z_var)):
-            if not reg_i:
-                ret.append(z_i)
-        return self.nonreg_latent_dist.join_vars(ret)
-
-    def reg_dist_info(self, dist_info):
-        ret = []
-        for (_, reg_i), dist_info_i in zip(self.latent_spec, self.latent_dist.split_dist_info(dist_info)):
-            if reg_i:
-                ret.append(dist_info_i)
-        return self.reg_latent_dist.join_dist_infos(ret)
-
-    def nonreg_dist_info(self, dist_info):
-        ret = []
-        for (_, reg_i), dist_info_i in zip(self.latent_spec, self.latent_dist.split_dist_info(dist_info)):
-            if not reg_i:
-                ret.append(dist_info_i)
-        return self.nonreg_latent_dist.join_dist_infos(ret)
-
-    def combine_reg_nonreg_z(self, reg_z_var, nonreg_z_var):
-        reg_z_vars = self.reg_latent_dist.split_var(reg_z_var)
-        reg_idx = 0
-        nonreg_z_vars = self.nonreg_latent_dist.split_var(nonreg_z_var)
-        nonreg_idx = 0
-        ret = []
-        for idx, (dist_i, reg_i) in enumerate(self.latent_spec):
-            if reg_i:
-                ret.append(reg_z_vars[reg_idx])
-                reg_idx += 1
-            else:
-                ret.append(nonreg_z_vars[nonreg_idx])
-                nonreg_idx += 1
-        return self.latent_dist.join_vars(ret)
-
-    def combine_reg_nonreg_dist_info(self, reg_dist_info, nonreg_dist_info):
-        reg_dist_infos = self.reg_latent_dist.split_dist_info(reg_dist_info)
-        reg_idx = 0
-        nonreg_dist_infos = self.nonreg_latent_dist.split_dist_info(nonreg_dist_info)
-        nonreg_idx = 0
-        ret = []
-        for idx, (dist_i, reg_i) in enumerate(self.latent_spec):
-            if reg_i:
-                ret.append(reg_dist_infos[reg_idx])
-                reg_idx += 1
-            else:
-                ret.append(nonreg_dist_infos[nonreg_idx])
-                nonreg_idx += 1
-        return self.latent_dist.join_dist_infos(ret)
-
     ###########################################################################
     # SAMPLING
     ###########################################################################
